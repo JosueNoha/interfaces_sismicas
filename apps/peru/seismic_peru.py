@@ -16,11 +16,8 @@ from core.utils import unit_tool
 # Importar utilidades ETABS centralizadas
 try:
     from core.utils import etabs_utils as etb
-    from apps.peru import etabs_utils as peru_etb  # Utilidades específicas de Perú
 except ImportError:
-    # Fallback si no están disponibles
     etb = None
-    peru_etb = None
 
 u = unit_tool.Units()
 

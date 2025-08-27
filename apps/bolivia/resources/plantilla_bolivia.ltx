@@ -1,0 +1,505 @@
+\documentclass{article}%
+\usepackage[T1]{fontenc}%
+\usepackage[utf8]{inputenc}%
+\usepackage{lmodern}%
+\usepackage{textcomp}%
+\usepackage{lastpage}%
+\usepackage{geometry}%
+\geometry{left=2.5cm,top=1.5cm}%
+\usepackage[dvipsnames]{xcolor}%
+\usepackage{array}%
+\usepackage{colortbl}%
+\usepackage{graphicx}%
+\usepackage{caption}%
+\usepackage{ragged2e}%
+\usepackage{diagbox}%este paquete reemplaza a 
+\usepackage{float}%
+\usepackage{amsmath}%
+\usepackage{xcolor}%
+\usepackage{multirow}%
+\usepackage{tcolorbox}%
+\usepackage{booktabs}%
+\usepackage{subfigure}%
+\usepackage{makecell}
+\graphicspath{ {..//out} }
+
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{xfp}
+\usepackage{placeins}
+
+
+\begin{document}%
+\normalsize%
+
+
+% --------- PORTADA ---------
+\begin{titlepage}
+    \centering
+    \vspace*{0.5cm}
+    
+    {\Large\textbf{MEMORIA DE CÁLCULO}}\\[1em]
+    {\Large\textbf{DE ANÁLISIS SÍSMICO}}\\[1em]
+    {\large\textbf{SEGÚN NORMA BOLIVIANA }} \\[1em]% Cambia XXX por E030, ASCE 7-22, etc.
+    {\large\textbf{DE DISEÑO SÍSMICO (CNBDS 2023)}} \\[2em]
+    
+    @image\_portada
+
+    \vfill
+    
+    \textbf{Proyecto:} \\
+    \textit{@proyecto.0nn}\\[2em]
+    
+    \textbf{Ubicación:} \\
+    \textit{@ubicacion.0nn}\\[2em]
+    
+    \textbf{Elaborado por:} \\
+    \textit{@autor.0nn} \\[2em]
+    
+    \textbf{Fecha:} \\
+    \textit{@fecha.0nn}\\[1em]
+    
+    \vfill
+    
+    \includegraphics[width=0.3\textwidth]{images/logo.png}\\
+    % Asegúrate de tener una imagen llamada "logo.png" en el mismo folder
+    
+    \vspace*{0.5cm}
+\end{titlepage}
+
+
+\tableofcontents
+
+
+\clearpage
+
+@content\_description
+
+@content\_criteria
+
+@content\_loads
+
+\newpage
+
+\section{Espectro de Diseño}%
+
+\subsection{Amenaza Sísmica}
+
+
+De acuerdo a la ubicación del proyecto se determina el PGA, ver imagen \ref{fig:MapaSismico} 
+
+
+
+%--------- Figura Mapa-----------------------
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\linewidth]{images/MapaSismicoBolivia.png}
+    \caption{Mapa de PGA para un PR de 475 anos}
+    \label{fig:MapaSismico}
+\end{figure}
+
+\subsection{Coeficientes de sitio}
+
+\begin{tcolorbox}[colback=gray!5!white,colframe=green!35!black,fonttitle=\bfseries,title=Artículo 6 – Coeficientes $\text{F}_a$ y $\text{F}_v$]
+\textit{Los efectos del tipo de suelo en la acción sísmica se pueden considerar a partir de la aplicación de los factores, \( F_a \) y \( F_v \), en función de la aceleración máxima del suelo, \( S_0 \) (PGA)}.
+\end{tcolorbox}
+
+
+%------------tabla Fa----------------
+\begin{table}[!ht]
+\centering
+\caption{Coeficiente de sitio de periodo corto, $F_a$}
+\footnotesize
+\begin{tabular}{ccccccc}
+\toprule
+\multirow{2}{*}{\shortstack{\textbf{Tipo de} \\ \textbf{suelo}}} & \multicolumn{6}{c}{\(S_0\)} \\
+\cmidrule(lr){2-7}
+ & \(< 0.067\) & \(0.133\) & \(0.200\) & \(0.267\) & \(0.333\) & \(> 0.400\) \\
+\midrule
+S0 & 0.8 & 0.8 & 0.8 & 0.8 & 0.8 & 0.8 \\
+S1 & 0.9 & 0.9 & 0.9 & 0.9 & 0.9 & 0.9 \\
+S2 & 1.3 & 1.3 & 1.2 & 1.1 & 1.1 & 1.1 \\
+S3 & 1.6 & 1.4 & 1.2 & 1.1 & 1.1 & 1.1 \\
+S4 & 2.4 & 1.7 & 1.3 & 1.2 & 1.2 & 1.2 \\
+\bottomrule
+\end{tabular}
+\label{tab:Fa}
+\end{table}
+\vspace{0.5em}
+
+
+
+
+%----------tabla Fv-------------------
+
+\begin{table}[!ht]
+\centering
+\caption{Coeficiente de sitio de periodo largo, $F_v$}
+\footnotesize
+\begin{tabular}{ccccccc}
+\toprule
+\multirow{2}{*}{\shortstack{\textbf{Tipo de} \\ \textbf{suelo}}} & \multicolumn{6}{c}{\(S_0\)} \\
+\cmidrule(lr){2-7}
+ & \(< 0.053\) & \(0.107\) & \(0.160\) & \(0.213\) & \(0.267\) & \(> 0.320\) \\
+\midrule
+S0 & 0.64 & 0.7 & 0.8 & 0.8 & 0.8 & 0.8 \\
+S1 & 0.64 & 0.7 & 0.8 & 0.8 & 0.8 & 0.8 \\
+S2 & 1.2 & 1.3 & 1.5 & 1.5 & 1.5 & 1.4 \\
+S3 & 2.0 & 2.0 & 2.0 & 1.9 & 1.8 & 1.7 \\
+S4 & 3.5 & 3.0 & 2.8 & 2.4 & 2.4 & 2.4 \\
+\bottomrule
+\end{tabular}
+\label{tab:Fv}
+\end{table}
+\vspace{-1em}
+
+
+% Fórmula de interpolación lineal
+\paragraph{Fórmula de interpolación lineal:}
+Para valores intermedios de PGA, los coeficientes $F_a$ y $F_v$ se calculan mediante interpolación lineal entre los puntos tabulados:
+
+\[
+F_x = F_{x1} + \frac{(F_{x2} - F_{x1})}{(PGA_2 - PGA_1)} \cdot (PGA - PGA_1)
+\]
+
+
+\noindent
+donde:
+
+\hangindent=1.5em
+$F_x$: $F_a$ o $F_v$ a interpolar. \\ 
+\hangindent=1.5em
+$PGA$: Valor de aceleración del sitio. \\ 
+\hangindent=1.5em
+$PGA_1$, $PGA_2$: Valores tabulados inmediatamente inferior y superior al PGA del sitio. \\ 
+\hangindent=1.5em
+$F_{x1}$, $F_{x2}$: Valores de $F_a$ o $F_v$ correspondientes a $PGA_1$ y $PGA_2$
+\vspace{1em}
+
+\subsection{Clasificación de la estructura}
+
+\begin{tcolorbox}[colback=gray!5!white,colframe=green!35!black,fonttitle=\bfseries,title=Artículo 8 – Factor de importancia]
+\textit{En función al nivel de seguridad estructural que deben tener las construcciones, cuatro tipos son definidos: IV, III, II y I, asignándose un factor de importancia, \( I_e \), especificado en la Tabla}.
+\end{tcolorbox}
+
+
+
+\begin{table}[!ht]
+\centering
+\caption{Clasificación sísmica de estructuras}
+\label{tab:Ie}
+\footnotesize
+\begin{tabular}{@{}c>{\raggedright\arraybackslash}p{9.2cm}c@{}}
+\toprule
+\textbf{Tipo} & \multicolumn{1}{c}{\textbf{Características}} & $I_e$ \\
+\midrule
+\textbf{IV} & Esenciales post-terremoto (hospitales, bomberos, plantas de agua) & 1.5 \\
+\textbf{III} & Alta ocupación (escuelas, cines, centros comerciales) & 1.3 \\
+\textbf{II} & Uso habitual (viviendas, oficinas, hoteles) & 1.0 \\
+\textbf{I}  & Construcciones temporales o aisladas & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Espectro elástico de diseño}
+
+%-------------ecuaciones del espectro elastico------------
+ \[
+S_{ae}(T) =
+\begin{cases}
+F_a\,S_0\;\bigl(1 + 1.5\,\tfrac{T}{T_0}\bigr), & T < T_0, \\[6pt]
+2.5\,F_a\,S_0, & T_0 \le T \le T_s, \\[6pt]
+\dfrac{1.25\,F_v\,S_0}{T}, & T_s < T \le T_L, \\[6pt]
+\dfrac{1.25\,F_v\,S_0\,T_L}{T^2}, & T > T_L.
+\tag{Tabla 11 CNBDS-23}
+\end{cases}
+\]
+\vspace{1em}
+
+donde:
+\[
+\quad
+T_0 = 0.15\,\frac{F_v}{F_a},\quad
+T_s = 0.5\,\frac{F_v}{F_a},\quad
+T_L = 4\,\frac{F_v}{F_a}
+\tag{Tabla 12 CNBDS-23}
+\]
+
+\vspace{-0.8em}
+%------Imagen Espectro Elástico ----------------
+\begin{figure}[H]
+\centering
+\begin{minipage}[c]{0.60\linewidth}
+    \includegraphics[width=\linewidth]{images/EspectroElasticoBolivia.png}
+\end{minipage}%
+\hfill
+\begin{minipage}[c]{0.3\linewidth}
+    \centering
+    \begin{align*}
+        S_{DS} &= 2.5 \cdot F_a \cdot S_0 \\
+        S_{D1} &= 1.25 \cdot F_v \cdot S_0
+    \end{align*}
+\end{minipage}
+\caption{Espectro elástico de pseudoaceleración en unidades de \(g\)}
+\label{fig:EspectroElasticoConFormulas}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}
+    %draw[color=blue, help lines,dashed ] (0,0) grid (4.5,1.7);
+    \begin{axis}
+    [grid=both,
+    grid style={line width=.1pt,dashed, draw=gray!10},
+    major grid style={line width=.2pt,draw=gray!50},name=plot, xlabel={T (s)},ylabel={Sa (g)},xmin=0,xmax=4,
+    ymin=0,ymax=\fpeval{1 * @Samax.2nu},width=.8\textwidth,height=10cm,legend entries={Elástico,Y(R=8)},legend pos=north east]%,xtick distance=.5%,ytick distance=.5]
+    \addplot[OrangeRed,ultra thick] table{espectro_bolivia.txt};\label{xx}
+    %\addplot[MidnightBlue,ultra thick] table{DATOS/EY8.txt};\label{yy}
+    \node[] (C) at (axis cs: @To.2nu,\fpeval{0.9 * @Samax.2nu}) {\hspace{0.5cm}Ta};
+    \node[] (B) at (axis cs: @To.2nu,0) {};
+    \node[] (D) at (axis cs: @Ts.2nu,\fpeval{0.9 * @Samax.2nu}) {\hspace{0.5cm}Tb};
+    \node[] (G) at (axis cs: @Ts.2nu,0) {};
+    \end{axis}
+
+\draw[dashed,color=green,line width=1pt] (C)--(B);
+\draw[dashed,color=orange,line width=1pt] (D)--(G);
+   
+    \end{tikzpicture}
+    \caption{Espectro de aceleraciones}
+    \label{fig:my_label}
+\end{figure}
+
+
+%\section{Análisis Sísmico}%
+
+\section{Análisis modal}
+
+
+\begin{tcolorbox}[colback=gray!5!white,colframe=green!35!black,fonttitle=\bfseries,title=Articulo 23.I – Número de modos]
+\textit{Se realizará un análisis dinámico para determinar los modos naturales de vibración de la estructura. El análisis incluirá el número suficiente de modos de vibración de manera que se alcance por lo menos la participación modal del 90 \% de la masa sísmica en cada dirección horizontal ortogonal}.
+\end{tcolorbox}
+
+@table\_modal
+
+@image\_modes
+
+
+\clearpage
+
+\section{Análisis de Irregularidades}%
+
+
+\subsection{Irregularidad Torsional}
+
+
+\begin{table}[!ht]
+\centering
+\caption{Irregularidades estructurales en planta (\(I_p\))}
+\label{tab:irregularidades_planta}
+\footnotesize
+\begin{tabular}{@{}p{2.6cm}p{9.0cm}c@{}}
+\toprule
+\textbf{Irregularidad} & \textbf{Descripción} & \(\boldsymbol{I_p}\) \\
+\midrule
+\textbf{P1-}Irregularidad Torsional
+  & Existe irregularidad torsional cuando, en cualquiera de las direcciones de análisis, el máximo desplazamiento relativo de entrepiso en un extremo del edificio (\(\Delta_{\max}\)) en esa dirección, calculado incluyendo excentricidad accidental, es mayor que 1.30 veces el desplazamiento relativo promedio de los extremos del mismo entrepiso para la misma condición de carga (\(\Delta_{\mathrm{prom}}\)). Este criterio solo se aplica en edificios con diafragmas rígidos y solo si \(\Delta_{\max}\) es mayor que 50\,\% del desplazamiento permisible indicado en la Tabla 8.
+  & 0.15 \\
+
+\textbf{P2-}Irregularidad Torsional Extrema
+  & Existe irregularidad torsional extrema cuando, en cualquiera de las direcciones de análisis, \(\Delta_{\max}\) en un extremo, calculado con excentricidad accidental, es mayor que 1.50 veces \(\Delta_{\mathrm{prom}}\). Se aplica solo en edificios con diafragma rígido y si \(\Delta_{\max}\) supera 50\,\% del desplazamiento permisible en la Tabla 8.
+  & 0.20 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+@table\_torsion\_x
+
+@table\_torsion\_y
+
+\clearpage
+
+\section{Análisis Dinámico Espectral}
+
+\subsection{Criterios de combinación}
+\begin{tcolorbox}[colback=gray!5!white,colframe=green!35!black,fonttitle=\bfseries,title=Articulo 23.III – Parámetros de respuesta combinada]\textit{El valor de cada parámetro de interés calculado para los distintos modos deberá ser combinado utilizando el método de la Raíz Cuadrada de la Suma de Cuadrados (SRSS), el método de Combinación Cuadrática Completa (CQC), el método de Combinación Cuadrática Completa modificado por el (ASCE 4, 1998) (CQC-4), o cualquier procedimiento equivalente justificado. Para aquellos casos en los que modos próximos tengan correlación cruzada significativa en la respuesta traslacional o torsional, se deberá utilizar el método CQC o el CQC-4}.
+\end{tcolorbox}
+
+
+
+\section{Determinación de desplazamientos laterales}
+
+\begin{tcolorbox}[colback=gray!5!white,colframe=green!35!black,fonttitle=\bfseries,title=Articulo 23.II – Parámetros de respuesta modal]
+\textit{El valor de cada parámetro de diseño de interés, incluyendo derivas de piso, reacciones en apoyos y fuerzas en elementos individuales para cada modo de respuesta, será calculado usando las propiedades de cada modo y el espectro de respuesta definido en el Capítulo IV, dividido por \(R\,I_e\). \textbf{El valor de los desplazamientos y de las derivas deberá multiplicarse por \(C_d\,I_e\)}.}
+
+\end{tcolorbox}
+
+Los desplazamientos laterales debidos al efecto sísmico se obtienen mediante:
+
+\begin{equation}
+\delta_x = \frac{C_d \cdot \delta_{xe}}{I_e}
+\label{eq:desplazamiento_sismico}
+\end{equation}
+
+\noindent donde:
+
+\begin{itemize}
+  \item $C_d$: Factor de amplificación de desplazamientos.
+  \item $\delta_{xe}$: Desplazamiento determinado por el análisis elástico.
+  \item $I_e$: Factor de importancia.
+\end{itemize}
+
+@table\_disp
+
+\begin{figure}[H]
+\includegraphics[width=0.8\textwidth]{images/desplazamientos_laterales}
+\caption{Desplazamientos inelásticos}
+\end{figure}
+
+\section{Verificación de derivas máximas}
+
+\begin{tcolorbox}[colback=gray!5!white,colframe=green!35!black,fonttitle=\bfseries,title=Articulo 16.I – Consideraciones en estructuras de hormigón armado]   
+\textit{\textbf{a)} Para la aplicación de esta norma en el cálculo de las derivas se pueden utilizar secciones brutas sin considerar fisuramiento, ni la contribución de la armadura de refuerzo en la evaluación de los momentos de inercia.}
+\end{tcolorbox}
+
+\begin{tcolorbox}[colback=gray!5!white,colframe=green!35!black,fonttitle=\bfseries,title=Artículo 15.II – Derivas]   
+    \textit{
+Los valores máximos de deriva, indicados en la Tabla 8, deberán ser reducidos en función de las irregularidades que tenga la estructura por medio de la Ec.(2).
+}
+
+\[
+\Delta_i = \frac{\delta_i}{h_i} \cdot FIT
+\tag{2}
+\]
+\end{tcolorbox}
+
+
+\begin{tcolorbox}[colback=gray!5!white,colframe=green!35!black,fonttitle=\bfseries,title=Artículo 16 – Factores de irregularidad total]   
+    \textit{Los factores de irregularidad en altura, \(I_a\) y en planta, \(I_p\), consideran la menor capacidad de disipación de energía que tienen las estructuras que no son regulares. Para estructuras que no presentan las irregularidades descritas en la Tabla 9 y la Tabla 10, el \(FIT\) será igual a la unidad}.
+
+\textit{Cuando la estructura cuente con alguna irregularidad de la Tabla 9 o la Tabla 10, el \(F_{IT}\) se calculará de la siguiente manera}:
+\[
+FIT = 1 - \sum I_a - \sum I_p
+\tag{3}
+\]
+
+\noindent \textit{Nota: El \(F_{IT}\) no precisa ser menor a 0.50.}
+\end{tcolorbox}
+
+@table\_drifts
+
+\begin{figure}[H]
+\includegraphics[width=0.8\textwidth]{images/derivas}
+\caption{Derivas máxima de entrepiso}
+\end{figure}
+
+
+\section{Análisis Estático}
+
+
+\begin{table}[!ht]
+\centering
+\caption{Criterios de diseño sísmico para el cálculo del cortante basal estático}
+\label{tab:Vb_estatico}
+\footnotesize
+\begin{tabular}{@{} 
+    >{\raggedright\arraybackslash}m{3.5cm}  
+    >{\centering\arraybackslash}m{10cm}    
+  @{}}
+\toprule
+[0.2em]
+\multicolumn{2}{c}{\textbf{Corte basal}} \\
+\midrule
+\(V = C_s \cdot W\), & donde \(W\) es el peso sísmico total. \\
+\addlinespace 
+& \(\displaystyle C_s = \frac{2.5\,F_a\,S_0}{R\,I_e} \) \\
+
+\midrule
+\multicolumn{2}{c}{\textbf{Límites de \(C_s\)}} \\
+\midrule
+\multicolumn{1}{r}{Máximo} & \(\displaystyle
+C_s^{\max} =
+\begin{cases}
+\frac{1.25\,F_v\,S_0}{T\,(R\,I_e)} & T \le T_L\\[6pt]
+\frac{1.25\,F_v\,S_0\,T_L}{T^2\,(R\,I_e)} & T > T_L
+\end{cases}
+\) \\
+\addlinespace
+\multicolumn{1}{r}{Mínimo} & \(\displaystyle C_s^{\min} = \max\left(0.11\,F_a\,S_0\,I_e,\, 0.01\right) \) \\
+
+\midrule
+\multicolumn{2}{c}{\textbf{Periodo fundamental} \(T_F\)} \\
+\midrule
+\begin{minipage}[t]{\linewidth}
+\vspace{0.2em}
+Debe calcularse mediante análisis dinámico justificado y cumplir \(\displaystyle T_F \le C_u\,T_a\).\\
+Como alternativa se puede usar \(T_F = T_a\).\\
+[0.5em]
+
+\centering
+\(T_a = C_t \, h^x\)
+\end{minipage}
+&
+\begin{minipage}[t]{\linewidth}
+
+\centering
+\vspace{-0.2em}
+\begin{tabular}{@{}c c@{}}
+\toprule
+\(\boldsymbol{S_0}\) & \(\boldsymbol{C_u}\) \\ 
+\midrule
+\(\ge0.32\)   & 1.4 \\
+\(\ge0.24\)   & 1.4 \\
+\(\ge0.16\)   & 1.5 \\
+\(\ge0.12\)   & 1.6 \\
+\(\le0.08\)   & 1.7 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\\
+\bottomrule
+[0.2em]
+\end{tabular}
+\end{table}
+
+
+\section{Fuerza cortante mínima}
+
+\begin{tcolorbox}[colback=gray!5!white,colframe=cyan!75!black,fonttitle=\bfseries,title=Articulo 23.V – Escalado de fuerzas]
+\textit{Cuando la respuesta combinada para el cortante basal modal, \(V_t\), resulte menor que el 65\,\% del cortante basal, \(V\), calculado según lo indicado en el § III del Artículo 22, debe realizarse una corrección modificando el valor de \(R\) de la siguiente manera}:
+
+\[ R^* = R \cdot \frac{V_t}{V \cdot 0.65}\]
+
+\end{tcolorbox}
+
+@table\_shear\_dynamic
+
+@table\_shear\_static
+
+
+\begin{figure}[H]
+\includegraphics[width=0.8\textwidth]{images/cortante_dinamico.pdf}
+\caption{Cortantes de Entrepiso del Análisis Modal Espectral}
+\end{figure}
+
+\begin{figure}[H]
+\includegraphics[width=0.8\textwidth]{images/cortante_estatico.pdf}
+\caption{Cortantes de Entrepiso del Análisis Estático equivalente}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\caption{Escalamiento de la cortante dinámica}
+\begin{tabular}{ccc}
+\toprule
+ & X & Y \\
+\midrule
+V din (@funit.0nn) & @Vdx.2F4 & @Vdy.2F4 \\
+V est (@funit.0nn) & @Vsx.2F4 &@Vsy.2F4 \\
+\% min & @permin.0nu & @permin.0nu \\
+\% & @perVdsx.0nu & @perVdsy.0nu \\
+F.E. & @FEx.2nu & @FEy.2nu \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\end{document}

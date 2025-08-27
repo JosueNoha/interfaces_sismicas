@@ -6,10 +6,10 @@ import numpy as np
 from typing import Dict, Any, Tuple
 from PyQt5.QtWidgets import QPushButton, QLabel, QComboBox, QGridLayout
 
-from core.app_factory import UnifiedSeismicApp
+from core.base.app_base import AppBase
 
 
-class PeruSeismicApp(UnifiedSeismicApp):
+class PeruSeismicApp(AppBase):
     """Extensiones específicas para la aplicación de Perú"""
     
     def __init__(self, config: Dict[str, Any]):

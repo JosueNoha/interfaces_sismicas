@@ -28,7 +28,7 @@ class AppBase(QMainWindow):
         self.ui.setupUi(self)
         
         # Diálogo de descripciones (común)
-        from shared.dialogs.descriptions_dialog import DescriptionsDialog
+        from shared.dialogs import DescriptionsDialog
         self.ui_descriptions = DescriptionsDialog()
         
         # Conectar señales comunes

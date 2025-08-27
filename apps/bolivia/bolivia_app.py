@@ -6,10 +6,10 @@ from typing import Dict, Any
 from PyQt5.QtWidgets import QPushButton, QLabel
 from pathlib import Path
 
-from core.app_factory import UnifiedSeismicApp
+from core.base.app_base import AppBase
 
 
-class BoliviaSeismicApp(UnifiedSeismicApp):
+class BoliviaSeismicApp(AppBase):
     """Extensiones específicas para la aplicación de Bolivia"""
     
     def __init__(self, config: Dict[str, Any]):

@@ -1,43 +1,28 @@
 """
-Configuración específica para la aplicación de análisis sísmico de Perú
+Configuración específica para Bolivia - CNBDS 2023
+Redirige a la configuración centralizada
 """
 
-PERU_CONFIG = {
-    'norma': 'E.030',
-    'titulo_norma': 'NORMA TÉCNICA COMPLEMENTARIA PARA EL DISEÑO POR SISMO (E.030 2018)',
-    'template_path': 'apps/peru/resources/templates/plantilla_peru.ltx',
-    'ubicacion_defecto': 'Lima',
-    'autor_defecto': 'Yabar Ingenieros',
-    'parametros_defecto': {
-        'Z': 0.25,  # Zona 2
-        'U': 1.00,  # Categoría C
-        'S': 1.20,  # Suelo S1
-        'Tp': 0.60,
-        'Tl': 2.00,
-        'fecha': '05/10/2025',
-        'proyecto': 'Edificación de Concreto Reforzado'
-    },
-    'zonas_sismicas': {
-        '1': {'Z': 0.10},
-        '2': {'Z': 0.25},
-        '3': {'Z': 0.35},
-        '4': {'Z': 0.45}
-    },
-    'tipos_suelo': {
-        'S0': {'S_zona_1': 0.80, 'S_zona_2': 0.80, 'S_zona_3': 0.80, 'S_zona_4': 0.80,
-               'Tp': 0.30, 'Tl': 3.00},
-        'S1': {'S_zona_1': 1.00, 'S_zona_2': 1.00, 'S_zona_3': 1.00, 'S_zona_4': 1.00,
-               'Tp': 0.40, 'Tl': 2.50},
-        'S2': {'S_zona_1': 1.60, 'S_zona_2': 1.20, 'S_zona_3': 1.15, 'S_zona_4': 1.05,
-               'Tp': 0.60, 'Tl': 2.00},
-        'S3': {'S_zona_1': 2.00, 'S_zona_2': 1.40, 'S_zona_3': 1.20, 'S_zona_4': 1.10,
-               'Tp': 1.00, 'Tl': 1.60}
-    },
-    'categorias': {
-        'A1': {'U': 1.50},
-        'A2': {'U': 1.30}, 
-        'B': {'U': 1.30},
-        'C': {'U': 1.00},
-        'D': {'U': 1.00}
-    }
+# Importar configuración centralizada
+from core.config.app_config import BOLIVIA_CONFIG
+
+# Re-exportar para compatibilidad (si es necesario)
+__all__ = ['BOLIVIA_CONFIG']
+
+# Si hay constantes específicas de Bolivia que no están en la config central,
+# se pueden agregar aquí:
+
+# Constantes auxiliares específicas de Bolivia (si son necesarias)
+BOLIVIA_SEISMIC_ZONES = {
+    1: {"Z": 0.2, "description": "Zona de baja sismicidad"},
+    2: {"Z": 0.25, "description": "Zona de moderada sismicidad"}, 
+    3: {"Z": 0.3, "description": "Zona de alta sismicidad"},
+    4: {"Z": 0.4, "description": "Zona de muy alta sismicidad"}
+}
+
+# Factores de suelo específicos de Bolivia (si no están en config central)
+BOLIVIA_SOIL_FACTORS = {
+    'S1': {'Fa_min': 1.0, 'Fa_max': 1.2, 'Fv_min': 1.0, 'Fv_max': 1.5},
+    'S2': {'Fa_min': 1.2, 'Fa_max': 1.4, 'Fv_min': 1.1, 'Fv_max': 1.8},
+    'S3': {'Fa_min': 1.8, 'Fa_max': 2.5, 'Fv_min': 1.8, 'Fv_max': 2.4}
 }

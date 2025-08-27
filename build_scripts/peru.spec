@@ -47,8 +47,9 @@ a = Analysis(
         'core.base.memory_base',
         'core.config.app_config',
         'core.config.constants',
-        'ui.generated.ui_peru',
-        'ui.generated.ui_descriptions',
+        # CORREGIDO: Usar interfaces reales en lugar de generated
+        'ui.main_window',
+        'ui.widgets.seismic_params_widget',
         'apps.peru.app_peru',
         'apps.peru.config_peru',
         'shared.dialogs.descriptions_dialog'

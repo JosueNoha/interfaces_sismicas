@@ -47,8 +47,9 @@ a = Analysis(
         'core.base.memory_base',
         'core.config.app_config',
         'core.config.constants',
-        'ui.generated.ui_bolivia',
-        'ui.generated.ui_descriptions',
+        # CORREGIDO: Usar interfaces reales en lugar de generated
+        'ui.main_window',
+        'ui.widgets.seismic_params_widget',
         'apps.bolivia.app_bolivia',
         'apps.bolivia.config_bolivia',
         'shared.dialogs.descriptions_dialog'

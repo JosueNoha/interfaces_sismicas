@@ -7,6 +7,7 @@ from typing import Dict, Any, Optional
 from PyQt5.QtWidgets import QApplication
 
 from core.base.app_base import AppBase
+# CORREGIDO: Usar interfaz real en lugar de generated
 from ui.main_window import Ui_MainWindow
 from ui.widgets.seismic_params_widget import SeismicParamsWidget
 

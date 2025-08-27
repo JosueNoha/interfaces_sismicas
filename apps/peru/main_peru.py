@@ -3,20 +3,37 @@ Punto de entrada principal para la aplicación de análisis sísmico de Perú
 """
 
 import sys
+from pathlib import Path
 from PyQt5.QtWidgets import QApplication
+from PyQt5 import QtGui
 
-from apps.peru.app_peru import PeruSeismicApp
-
+# Agregar el directorio raíz al path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 def main():
     """Función principal de la aplicación Perú"""
     app = QApplication(sys.argv)
     
-    # Crear y mostrar la aplicación
-    main_window = PeruSeismicApp()
-    main_window.show()
+    # Configurar icono de la aplicación
+    icon_path = Path(__file__).parent.parent.parent / 'shared_resources' / 'yabar_logo.ico'
+    if icon_path.exists():
+        app.setWindowIcon(QtGui.QIcon(str(icon_path)))
     
-    sys.exit(app.exec_())
+    # CORREGIDO: Usar factory para crear app
+    try:
+        from core.app_factory import SeismicAppFactory
+        main_window = SeismicAppFactory.create_app('peru')
+        main_window.show()
+        
+        sys.exit(app.exec_())
+        
+    except ImportError as e:
+        print(f"Error importando módulos: {e}")
+        print("Verifique que esté ejecutando desde el directorio raíz del proyecto")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error inesperado: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

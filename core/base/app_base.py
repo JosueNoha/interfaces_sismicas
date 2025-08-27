@@ -1,10 +1,12 @@
 """
-Clase base para aplicaciones sísmicas - Funcionalidad común de interfaz
+Clase base actualizada para aplicaciones sísmicas - Funcionalidad común de interfaz
 """
 
 from PyQt5.QtWidgets import QMainWindow, QFileDialog, QMessageBox
 from PyQt5.QtCore import QDate
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QPixmap, QIcon
+from pathlib import Path
+import os
 
 from core.base.seismic_base import SeismicBase
 
@@ -27,6 +29,9 @@ class AppBase(QMainWindow):
         self.ui = ui_class()
         self.ui.setupUi(self)
         
+        # Configurar icono si está disponible
+        self._setup_icon()
+        
         # Diálogo de descripciones (común)
         from shared.dialogs.descriptions_dialog import DescriptionsDialog
         self.ui_descriptions = DescriptionsDialog()
@@ -36,6 +41,12 @@ class AppBase(QMainWindow):
         
         # Inicializar valores por defecto
         self._init_default_values()
+
+    def _setup_icon(self):
+        """Configurar icono de la aplicación"""
+        icon_path = self.config.get('icon_path')
+        if icon_path and os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
     def _connect_common_signals(self):
         """Conectar señales comunes entre aplicaciones"""
@@ -47,109 +58,71 @@ class AppBase(QMainWindow):
         self.ui.b_defY.clicked.connect(lambda: self.load_image('defY'))
         
         # Botones de descripciones
-        self.ui.b_descripcion.clicked.connect(lambda: self.open_descriptions('descripcion'))
-        self.ui.b_modelamiento.clicked.connect(lambda: self.open_descriptions('modelamiento'))
-        self.ui.b_cargas.clicked.connect(lambda: self.open_descriptions('cargas'))
+        self.ui.b_descripcion.clicked.connect(lambda: self.open_description_dialog('descripcion'))
+        self.ui.b_modelamiento.clicked.connect(lambda: self.open_description_dialog('modelamiento'))
+        self.ui.b_cargas.clicked.connect(lambda: self.open_description_dialog('cargas'))
         
-        # Conexión con ETABS
-        self.ui.b_actualizar.clicked.connect(self.set_loads)
-        
-        # Botones de análisis
-        self.ui.b_desplazamiento.clicked.connect(self.set_parameters)
-        
-        # Generación de reporte
+        # Botón generar reporte
         self.ui.b_reporte.clicked.connect(self.generate_report)
-        
-        # Diálogo descripciones
-        self.ui_descriptions.accepted.connect(self.set_descriptions)
 
     def _init_default_values(self):
-        """Inicializar valores por defecto de la interfaz"""
-        # Fecha actual
-        fecha_actual = QDate.currentDate().toString("dd/MM/yyyy")
-        self.ui.le_fecha.setText(fecha_actual)
-        
-        # Valores por defecto del país
-        defaults = self.config.get('parametros_defecto', {})
-        
-        if 'ubicacion' in defaults:
-            self.ui.le_ubicacion.setText(defaults['ubicacion'])
-            self.sismo.ubicacion = defaults['ubicacion']
-            
-        if 'autor' in defaults:
-            self.ui.le_autor.setText(defaults['autor'])
-            self.sismo.autor = defaults['autor']
+        """Inicializar valores por defecto"""
+        # Configurar fecha actual
+        current_date = QDate.currentDate()
+        self.ui.le_fecha.setText(current_date.toString("dd/MM/yyyy"))
 
-        # Parámetros específicos del país (implementar en clases derivadas)
-        self._init_country_defaults(defaults)
-
-    def _init_country_defaults(self, defaults):
-        """Inicializar parámetros por defecto específicos del país"""
-        pass
-
-    def load_image(self, image_type):
-        """Cargar imagen desde archivo"""
+    def load_image(self, image_type: str):
+        """Cargar imagen del tipo especificado"""
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             f"Seleccionar imagen para {image_type}",
             "",
-            "Archivos de imagen (*.png *.jpg *.jpeg *.gif *.bmp)"
+            "Imágenes (*.png *.jpg *.jpeg *.bmp *.gif);;Todos los archivos (*)"
         )
         
         if file_path:
-            label_name = f'lb_{image_type}'
-            if hasattr(self.ui, label_name):
-                label = getattr(self.ui, label_name)
-                
-                pixmap = QPixmap(file_path)
-                if not pixmap.isNull():
-                    scaled_pixmap = pixmap.scaled(
-                        label.size(), 
-                        aspectRatioMode=1,
-                        transformMode=1
-                    )
-                    label.setPixmap(scaled_pixmap)
-                    label.setText("")
-                    
-                    self.sismo.set_imagen(image_type, file_path)
-                else:
-                    self.show_error("No se pudo cargar la imagen seleccionada")
-
-    def open_descriptions(self, desc_type):
-        """Abrir diálogo de descripciones"""
-        default_text = self.sismo.get_descripcion(desc_type)
-        
-        self.ui_descriptions.ui.pt_description.setPlainText(default_text)
-        self.ui_descriptions.show()
-        self.ui_descriptions.name = desc_type
-
-    def set_descriptions(self):
-        """Establecer descripción desde diálogo"""
-        if not hasattr(self.ui_descriptions, 'name') or not self.ui_descriptions.name:
-            return
+            # Guardar ruta en el objeto sismo
+            setattr(self.sismo, f'url_{image_type}', file_path)
             
-        desc_type = self.ui_descriptions.name
-        texto = self.ui_descriptions.ui.pt_description.toPlainText()
+            # Actualizar interfaz para mostrar que se cargó la imagen
+            self.show_info(f"Imagen {image_type} cargada: {Path(file_path).name}")
+
+    def open_description_dialog(self, desc_type: str):
+        """Abrir diálogo de descripción"""
+        # Configurar título según tipo
+        titles = {
+            'descripcion': 'Descripción de la Estructura',
+            'modelamiento': 'Criterios de Modelamiento', 
+            'cargas': 'Descripción de Cargas Consideradas'
+        }
         
-        label_name = f'lb_{desc_type}'
-        if hasattr(self.ui, label_name):
-            label = getattr(self.ui, label_name)
-            label.setText('Descripción cargada')
+        self.ui_descriptions.label_description.setText(f"Ingrese {titles.get(desc_type, 'descripción')}:")
         
-        self.sismo.set_descripcion(desc_type, texto)
-        self.ui_descriptions.close()
-
-    def set_loads(self):
-        """Conectar con ETABS - implementar en clases derivadas"""
-        pass
-
-    def set_parameters(self):
-        """Obtener parámetros del modelo - implementar en clases derivadas"""  
-        pass
-
-    def generate_report(self):
-        """Generar reporte - implementar en clases derivadas"""
-        pass
+        # Cargar descripción existente si la hay
+        existing_desc = getattr(self.sismo, f'desc_{desc_type}', '')
+        self.ui_descriptions.ui.pt_description.setPlainText(existing_desc)
+        
+        # Mostrar diálogo
+        if self.ui_descriptions.exec_() == self.ui_descriptions.accepted:
+            # Obtener texto ingresado
+            texto = self.ui_descriptions.ui.pt_description.toPlainText().strip()
+            
+            # Actualizar label correspondiente
+            label_mapping = {
+                'descripcion': self.ui.lb_descripcion,
+                'modelamiento': self.ui.lb_modelamiento,
+                'cargas': self.ui.lb_cargas
+            }
+            
+            label = label_mapping.get(desc_type)
+            if label:
+                if texto:
+                    label.setText('Descripción cargada')
+                else:
+                    label.setText('Sin Descripción')
+            
+            # Guardar en objeto sismo
+            setattr(self.sismo, f'desc_{desc_type}', texto)
 
     def get_project_data(self):
         """Obtener datos del proyecto desde interfaz"""
@@ -168,19 +141,53 @@ class AppBase(QMainWindow):
         self.sismo.autor = project_data['autor']
         self.sismo.fecha = project_data['fecha']
 
-    def show_error(self, message):
+    def show_error(self, message: str):
         """Mostrar mensaje de error"""
         QMessageBox.critical(self, "Error", message)
 
-    def show_info(self, message):
+    def show_info(self, message: str):
         """Mostrar mensaje de información"""
         QMessageBox.information(self, "Información", message)
 
-    def get_output_directory(self):
+    def show_warning(self, message: str):
+        """Mostrar mensaje de advertencia"""
+        QMessageBox.warning(self, "Advertencia", message)
+
+    def get_output_directory(self) -> str:
         """Seleccionar directorio de salida para reportes"""
         directory = QFileDialog.getExistingDirectory(
             self,
             "Seleccionar directorio de salida",
-            "~/Documents"
+            str(Path.home() / "Documents")
         )
         return directory
+
+    def show_image(self, image_path: str, title: str = "Imagen"):
+        """Mostrar imagen en ventana emergente"""
+        if not os.path.exists(image_path):
+            self.show_error(f"No se encontró la imagen: {image_path}")
+            return
+        
+        dialog = QMessageBox(self)
+        dialog.setWindowTitle(title)
+        
+        pixmap = QPixmap(image_path)
+        # Escalar imagen si es muy grande
+        if pixmap.width() > 800 or pixmap.height() > 600:
+            pixmap = pixmap.scaled(800, 600, aspectRatioMode=1)  # Qt.KeepAspectRatio
+        
+        dialog.setIconPixmap(pixmap)
+        dialog.exec_()
+
+    # Métodos virtuales para ser implementados en clases derivadas
+    def generate_report(self):
+        """Generar reporte - implementar en clases derivadas"""
+        self.show_warning("Función de reporte no implementada para esta aplicación")
+
+    def set_loads(self):
+        """Conectar con ETABS - implementar en clases derivadas"""
+        pass
+
+    def set_parameters(self):
+        """Obtener parámetros del modelo - implementar en clases derivadas"""  
+        pass

@@ -46,6 +46,125 @@ class SeismicBase:
         self.tables = self.Tables()
         self.data = self.Data()
 
+    def __setattr__(self, name, value):
+        """Permitir asignación dinámica de atributos"""
+        if not hasattr(self, '_dynamic_attrs'):
+            super().__setattr__('_dynamic_attrs', {})
+        
+        # Atributos fijos van normalmente
+        fixed_attrs = {'config', 'proyecto', 'ubicacion', 'autor', 'fecha', 
+                    'urls_imagenes', 'descriptions', 'loads', 'tables', 'data', '_dynamic_attrs'}
+        
+        if name in fixed_attrs or name.startswith('_'):
+            super().__setattr__(name, value)
+        else:
+            self._dynamic_attrs[name] = value
+
+    def __getattr__(self, name):
+        """Recuperar atributos dinámicos"""
+        if hasattr(self, '_dynamic_attrs') and name in self._dynamic_attrs:
+            return self._dynamic_attrs[name]
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
+    
+    def get_modal_analysis(self):
+        """Obtener análisis modal desde ETABS"""
+        try:
+            from core.utils import etabs_utils as etb
+            # Intentar conectar con ETABS
+            EtabsObject, SapModel = etb.connect_to_etabs()
+            if not SapModel:
+                return None
+                
+            # Obtener datos modales
+            modal_data = etb.get_modal_data(SapModel)
+            if modal_data is not None and not modal_data.empty:
+                # Buscar períodos fundamentales
+                modal_x = modal_data[modal_data['UX'] > 0.1] if 'UX' in modal_data.columns else modal_data
+                modal_y = modal_data[modal_data['UY'] > 0.1] if 'UY' in modal_data.columns else modal_data
+                
+                Tx = modal_x.iloc[0]['Period'] if not modal_x.empty and 'Period' in modal_x.columns else 1.0
+                Ty = modal_y.iloc[0]['Period'] if not modal_y.empty and 'Period' in modal_y.columns else 1.2
+                
+                # Guardar datos en el objeto
+                self.data.Tx = float(Tx)
+                self.data.Ty = float(Ty)
+                self.tables.modal = modal_data
+                
+                return {'Tx': self.data.Tx, 'Ty': self.data.Ty}
+            return None
+        except Exception as e:
+            print(f"Error en análisis modal: {e}")
+            return None
+
+    def calculate_shear_forces(self):
+        """Calcular fuerzas cortantes desde ETABS"""
+        try:
+            from core.utils import etabs_utils as etb
+            EtabsObject, SapModel = etb.connect_to_etabs()
+            if not SapModel:
+                return None
+                
+            # Obtener fuerzas de piso (cortantes basales)
+            base_shear = etb.get_base_shear(SapModel)
+            if base_shear is not None and not base_shear.empty:
+                # Extraer cortantes en X e Y
+                Vx = base_shear['VX'].abs().max() if 'VX' in base_shear.columns else 0.0
+                Vy = base_shear['VY'].abs().max() if 'VY' in base_shear.columns else 0.0
+                
+                # Guardar datos
+                self.data.Vdx = float(Vx)
+                self.data.Vdy = float(Vy)
+                
+                return {'Vx': self.data.Vdx, 'Vy': self.data.Vdy}
+            return None
+        except Exception as e:
+            print(f"Error calculando cortantes: {e}")
+            return None
+
+    def calculate_displacements(self):
+        """Calcular desplazamientos desde ETABS"""
+        try:
+            from core.utils import etabs_utils as etb
+            EtabsObject, SapModel = etb.connect_to_etabs()
+            if not SapModel:
+                return None
+                
+            # Obtener desplazamientos de piso
+            displacements = etb.get_displacement_data(SapModel)
+            if displacements is not None and not displacements.empty:
+                # Extraer desplazamientos máximos
+                max_x = displacements['UX'].abs().max() if 'UX' in displacements.columns else 0.0
+                max_y = displacements['UY'].abs().max() if 'UY' in displacements.columns else 0.0
+                
+                self.tables.displacements = displacements
+                return {'max_x': float(max_x), 'max_y': float(max_y)}
+            return None
+        except Exception as e:
+            print(f"Error calculando desplazamientos: {e}")
+            return None
+
+    def calculate_drifts(self):
+        """Calcular derivas desde ETABS"""
+        try:
+            from core.utils import etabs_utils as etb
+            EtabsObject, SapModel = etb.connect_to_etabs()
+            if not SapModel:
+                return None
+                
+            # Obtener derivas de entrepiso
+            drifts = etb.get_drift_data(SapModel)
+            if drifts is not None and not drifts.empty:
+                # Extraer derivas máximas
+                max_drift_x = drifts['DriftX'].abs().max() if 'DriftX' in drifts.columns else 0.0
+                max_drift_y = drifts['DriftY'].abs().max() if 'DriftY' in drifts.columns else 0.0
+                
+                self.tables.drift_table = drifts
+                return {'max_drift_x': float(max_drift_x), 'max_drift_y': float(max_drift_y)}
+            return None
+        except Exception as e:
+            print(f"Error calculando derivas: {e}")
+            return None
+
     class Loads:
         """Manejo de cargas sísmicas"""
         def __init__(self):

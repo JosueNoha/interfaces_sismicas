@@ -3,15 +3,13 @@ Aplicación específica para Perú - E.030
 Consolidada desde peru_app.py y seismic_peru.py eliminando duplicación
 """
 
-import numpy as np
+
 from typing import Dict, Any, Tuple
 from PyQt5.QtWidgets import QPushButton, QLabel, QComboBox
-import matplotlib
-matplotlib.use('Agg')
-from matplotlib.figure import Figure
 
 from core.base.app_base import AppBase
 from core.config.app_config import PERU_CONFIG
+from ui.main_window import Ui_MainWindow
 
 
 class PeruSeismicApp(AppBase):
@@ -22,7 +20,8 @@ class PeruSeismicApp(AppBase):
         if config is None:
             config = PERU_CONFIG
             
-        super().__init__(config)
+        # Llamar al constructor base con UI class
+        super().__init__(config, Ui_MainWindow)
         
         # Parámetros específicos E.030 (consolidados desde seismic_peru.py)
         self._init_peru_params()
@@ -203,8 +202,11 @@ class PeruSeismicApp(AppBase):
         else:
             return 2.5 * (self.sismo.Tp * self.sismo.Tl) / (T**2)
     
-    def espectro_peru(self) -> Tuple[np.ndarray, np.ndarray]:
+    def espectro_peru(self) -> Tuple:
         """Generar espectro de respuesta para Perú según E.030"""
+        # ✅ Importación lazy de numpy para evitar recursión
+        import numpy as np
+        
         T = np.arange(0, 4+0.01, 0.01)
         Sa = np.zeros_like(T)
 
@@ -227,9 +229,12 @@ class PeruSeismicApp(AppBase):
         
         return T, Sa
     
-    def calculate_peru_spectrum(self) -> Tuple[np.ndarray, np.ndarray]:
+    def calculate_peru_spectrum(self) -> Tuple:
         """Calcular espectro de respuesta según E.030 con validaciones"""
         try:
+            # ✅ Importación lazy de numpy
+            import numpy as np
+            
             # Obtener parámetros desde la interfaz
             if hasattr(self, 'seismic_params_widget'):
                 params = self.seismic_params_widget.get_parameters()
@@ -271,7 +276,7 @@ class PeruSeismicApp(AppBase):
             
         except Exception as e:
             self.show_error(f"Error calculando espectro Perú: {str(e)}")
-            return np.array([]), np.array([])
+            return [], []
     
     def calculate_static_forces(self):
         """Calcular fuerzas estáticas equivalentes según E.030"""
@@ -316,6 +321,11 @@ class PeruSeismicApp(AppBase):
     def generate_spectrum_plot(self):
         """Generar gráfico del espectro dinámico"""
         try:
+            # ✅ Importaciones lazy para evitar recursión
+            import matplotlib
+            matplotlib.use('Agg')
+            from matplotlib.figure import Figure
+            
             T, Sa = self.calculate_peru_spectrum()
             if len(Sa) == 0:
                 return None

@@ -90,7 +90,7 @@ def create_app(country: str, debug: bool = False):
             from apps.bolivia.app import BoliviaSeismicApp
             window = BoliviaSeismicApp()
         elif country == 'peru':
-            from apps.peru.app import PeruSeismicApp
+            from apps.peru.app import PeruSeismicApp  
             window = PeruSeismicApp()
         else:
             raise ValueError(f"País no soportado: {country}")

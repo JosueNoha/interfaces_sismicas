@@ -1,266 +1,262 @@
 """
-Factory centralizado y corregido para crear aplicaciones sísmicas
-Elimina importaciones circulares y rutas incorrectas
+Aplicación específica para Bolivia - CNBDS 2023
+Renombrado desde bolivia_app.py por consistencia
 """
 
-import sys
-from typing import Dict, Any, Optional
-from PyQt5.QtWidgets import QApplication
+from typing import Dict, Any
+from PyQt5.QtWidgets import QPushButton
+from pathlib import Path
 
 from core.base.app_base import AppBase
-from ui.main_window import Ui_MainWindow  # ✅ Ruta corregida
-from ui.widgets.seismic_params_widget import SeismicParamsWidget
+from core.config.app_config import BOLIVIA_CONFIG
+from ui.main_window import Ui_MainWindow
 
 
-class SeismicAppFactory:
-    """Factory centralizado para crear aplicaciones sísmicas"""
+class BoliviaSeismicApp(AppBase):
+    """Aplicación específica para análisis sísmico de Bolivia - CNBDS 2023"""
     
-    @staticmethod
-    def create_app(pais: str, config: Optional[Dict[str, Any]] = None):
-        """
-        Crear aplicación sísmica para el país especificado
+    def __init__(self, config: Dict[str, Any] = None):
+        # Usar configuración por defecto si no se proporciona
+        if config is None:
+            config = BOLIVIA_CONFIG
         
-        Args:
-            pais: País ('bolivia' o 'peru')
-            config: Configuración personalizada opcional
-            
-        Returns:
-            Instancia de aplicación configurada
-        """
-        # Importar configuraciones de forma segura
-        try:
-            from core.config.app_config import get_config
-            country_config = get_config(pais)
-        except ValueError:
-            raise ValueError(f"País no soportado: {pais}. Use 'bolivia' o 'peru'")
-        
-        # Sobrescribir con config personalizada si se proporciona
-        if config:
-            country_config.update(config)
-        
-        # Crear aplicación específica según el país
-        # ✅ Rutas corregidas eliminando importaciones circulares
-        if pais.lower() == 'bolivia':
-            from apps.bolivia.app import BoliviaSeismicApp  # ✅ Ruta correcta
-            app = BoliviaSeismicApp(country_config)
-        elif pais.lower() == 'peru':
-            from apps.peru.app import PeruSeismicApp  # ✅ Ruta correcta  
-            app = PeruSeismicApp(country_config)
-        else:
-            # Fallback a aplicación unificada
-            app = UnifiedSeismicApp(country_config)
-        
-        return app
-
-    @staticmethod
-    def get_available_countries():
-        """Obtener lista de países disponibles"""
-        return ['bolivia', 'peru']
-
-    @staticmethod  
-    def validate_country(country: str) -> bool:
-        """Validar que el país esté soportado"""
-        return country.lower() in SeismicAppFactory.get_available_countries()
-
-
-class UnifiedSeismicApp(AppBase):
-    """Aplicación sísmica unificada como fallback"""
-    
-    def __init__(self, config: Dict[str, Any]):
+        # Llamar al constructor base con UI class
         super().__init__(config, Ui_MainWindow)
         
-        # Configurar título específico del país
-        self.setWindowTitle(config.get('window_title', 'Análisis Sísmico'))
-        
-        # Configurar widget de parámetros sísmicos dinámico
-        self._setup_seismic_params_widget()
-        
-        # Conectar señales específicas
-        self._connect_specific_signals()
-        
-        # Aplicar valores por defecto
-        self._apply_default_values()
-
-    def _setup_seismic_params_widget(self):
-        """Configurar widget de parámetros sísmicos dinámico"""
-        # Crear widget de parámetros específico para el país
-        self.seismic_params_widget = SeismicParamsWidget(self.config)
-        
-        # Agregar al grupo de parámetros sísmicos en la UI
-        self.ui.seismic_params_layout.addWidget(self.seismic_params_widget)
-        
-        # Conectar cambios de parámetros
-        self.seismic_params_widget.connect_param_changed(self._on_seismic_params_changed)
-
-    def _connect_specific_signals(self):
-        """Conectar señales específicas"""
-        # Botón de actualizar datos
-        if hasattr(self.ui, 'b_actualizar'):
-            self.ui.b_actualizar.clicked.connect(self.update_seismic_data)
-        
-        # Análisis modal
-        if hasattr(self.ui, 'b_modal'):
-            self.ui.b_modal.clicked.connect(self.show_modal_analysis)
-        
-        # Análisis de cortantes
-        if hasattr(self.ui, 'b_cortantes'):
-            self.ui.b_cortantes.clicked.connect(self.calculate_shear_forces)
-        
-        # Análisis de desplazamientos
-        if hasattr(self.ui, 'b_desplazamiento'):
-            self.ui.b_desplazamiento.clicked.connect(self.calculate_displacements)
-        if hasattr(self.ui, 'b_derivas'):
-            self.ui.b_derivas.clicked.connect(self.calculate_drifts)
-
-    def _apply_default_values(self):
-        """Aplicar valores por defecto según configuración"""
-        defaults = self.config.get('parametros_defecto', {})
-        
-        # Datos del proyecto
-        project_fields = {
-            'ubicacion': 'le_ubicacion',
-            'autor': 'le_autor', 
-            'proyecto': 'le_proyecto',
-            'fecha': 'le_fecha'
-        }
-        
-        for key, ui_element in project_fields.items():
-            if key in defaults and hasattr(self.ui, ui_element):
-                getattr(self.ui, ui_element).setText(str(defaults[key]))
-        
-        # Parámetros sísmicos
-        seismic_defaults = {k: v for k, v in defaults.items() 
-                           if k not in project_fields.keys()}
-        if seismic_defaults and hasattr(self, 'seismic_params_widget'):
-            self.seismic_params_widget.set_parameters(seismic_defaults)
-
-    def _on_seismic_params_changed(self):
-        """Callback cuando cambian parámetros sísmicos"""
-        if hasattr(self, 'seismic_params_widget'):
-            params = self.seismic_params_widget.get_parameters()
-            self.update_sismo_parameters(params)
-
-    def update_seismic_data(self):
-        """Actualizar datos sísmicos desde la interfaz"""
-        # Obtener datos del proyecto
-        project_data = self.get_project_data()
-        for key, value in project_data.items():
-            setattr(self.sismo, key, value)
-        
-        # Obtener parámetros sísmicos
-        if hasattr(self, 'seismic_params_widget'):
-            seismic_params = self.seismic_params_widget.get_parameters()
-            self.update_sismo_parameters(seismic_params)
-        
-        self.show_info("Datos actualizados correctamente")
-
-    def update_sismo_parameters(self, params: Dict[str, Any]):
-        """Actualizar parámetros del modelo sísmico"""
-        for key, value in params.items():
-            setattr(self.sismo, key, value)
-
-    # Métodos de análisis con manejo de errores mejorado
-    def show_modal_analysis(self):
-        """Mostrar análisis modal"""
-        try:
-            modal_data = self.sismo.get_modal_analysis()
-            if modal_data:
-                # Actualizar campos en la interfaz
-                if hasattr(self.ui, 'le_tx'):
-                    self.ui.le_tx.setText(f"{modal_data.get('Tx', 0):.4f}")
-                if hasattr(self.ui, 'le_ty'):
-                    self.ui.le_ty.setText(f"{modal_data.get('Ty', 0):.4f}")
-                
-                self.show_info("Análisis modal completado")
-            else:
-                self.show_warning("No se pudieron obtener datos modales. Verifique conexión con ETABS.")
-        except Exception as e:
-            self.show_error(f"Error en análisis modal: {str(e)}")
-
-    def calculate_shear_forces(self):
-        """Calcular fuerzas cortantes"""
-        try:
-            shear_data = self.sismo.calculate_shear_forces()
-            if shear_data:
-                if hasattr(self.ui, 'le_vestx'):
-                    self.ui.le_vestx.setText(f"{shear_data.get('Vx', 0):.2f}")
-                if hasattr(self.ui, 'le_vesty'):
-                    self.ui.le_vesty.setText(f"{shear_data.get('Vy', 0):.2f}")
-                
-                self.show_info("Fuerzas cortantes calculadas")
-            else:
-                self.show_warning("No se pudieron calcular las fuerzas cortantes")
-        except Exception as e:
-            self.show_error(f"Error calculando cortantes: {str(e)}")
-
-    def calculate_displacements(self):
-        """Calcular desplazamientos"""
-        try:
-            displacement_data = self.sismo.calculate_displacements()
-            if displacement_data:
-                self.show_info("Desplazamientos calculados correctamente")
-            else:
-                self.show_warning("No se pudieron calcular los desplazamientos")
-        except Exception as e:
-            self.show_error(f"Error calculando desplazamientos: {str(e)}")
-
-    def calculate_drifts(self):
-        """Calcular derivas"""
-        try:
-            drift_data = self.sismo.calculate_drifts()
-            if drift_data:
-                self.show_info("Derivas calculadas correctamente")
-            else:
-                self.show_warning("No se pudieron calcular las derivas")
-        except Exception as e:
-            self.show_error(f"Error calculando derivas: {str(e)}")
-
-    def generate_report(self):
-        """Generar reporte base - implementado en clases específicas"""
-        self.show_warning(
-            "Función de reporte debe ser implementada en la aplicación específica.\n"
-            "Use las aplicaciones de Bolivia o Perú para generar reportes."
-        )
-
-
-# Funciones de conveniencia para compatibilidad
-def create_application(country: str = None):
-    """
-    Función de conveniencia para crear aplicación desde línea de comandos
-    ⚠️ DEPRECATED: Usar main_app.py en su lugar
-    """
-    print("⚠️  create_application() está deprecated. Use main_app.py")
+        # Configurar extensiones específicas de Bolivia
+        self._setup_bolivia_extensions()
     
-    if not country:
-        if len(sys.argv) > 1:
-            country = sys.argv[1].lower()
+    def _setup_bolivia_extensions(self):
+        """Configurar extensiones específicas de Bolivia"""
+        # Agregar botón para mapa sísmico si existe
+        if self.config.get('parametros_ui', {}).get('mostrar_mapa', False):
+            self._add_seismic_map_button()
+        
+        # Configurar validaciones específicas de Bolivia
+        self._setup_bolivia_validations()
+    
+    def _add_seismic_map_button(self):
+        """Agregar botón para mostrar mapa sísmico de Bolivia"""
+        try:
+            # Agregar botón en el grupo de parámetros sísmicos
+            self.b_mapa_bolivia = QPushButton("Ver Mapa Sísmico Bolivia")
+            self.b_mapa_bolivia.clicked.connect(self.show_bolivia_seismic_map)
+            
+            # Agregar al layout de parámetros sísmicos
+            if hasattr(self.ui, 'seismic_params_layout'):
+                layout = self.ui.seismic_params_layout
+                current_row = layout.rowCount()
+                layout.addWidget(self.b_mapa_bolivia, current_row, 0, 1, 2)
+        except Exception as e:
+            print(f"Error agregando botón de mapa: {e}")
+    
+    def _setup_bolivia_validations(self):
+        """Configurar validaciones específicas para parámetros de Bolivia"""
+        # Conectar validaciones cuando se inicialice el widget de parámetros
+        if hasattr(self, 'seismic_params_widget'):
+            # Validaciones para factores Fa y Fv
+            if hasattr(self.seismic_params_widget, 'sb_fa'):
+                self.seismic_params_widget.sb_fa.valueChanged.connect(
+                    self._validate_bolivia_params
+                )
+            if hasattr(self.seismic_params_widget, 'sb_fv'):
+                self.seismic_params_widget.sb_fv.valueChanged.connect(
+                    self._validate_bolivia_params
+                )
+    
+    def show_bolivia_seismic_map(self):
+        """Mostrar mapa sísmico específico de Bolivia"""
+        # Buscar mapa en recursos de Bolivia
+        map_filename = self.config.get('mapa_sismico', 'MapaSismicoBolivia.png')
+        map_path = Path(__file__).parent / 'resources' / 'images' / map_filename
+        
+        if map_path.exists():
+            self.show_image(str(map_path), "Mapa Sísmico de Bolivia - CNBDS 2023")
         else:
-            country = 'bolivia'
+            self.show_warning(
+                f"Mapa sísmico no encontrado en:\n{map_path}\n\n"
+                "Verifique que el archivo esté en la carpeta de recursos."
+            )
     
-    # Crear aplicación Qt
-    qt_app = QApplication(sys.argv)
+    def _validate_bolivia_params(self):
+        """Validar parámetros específicos de Bolivia según CNBDS 2023"""
+        if not hasattr(self, 'seismic_params_widget'):
+            return
+            
+        try:
+            params = self.seismic_params_widget.get_parameters()
+            warnings = []
+            
+            # Obtener rangos de validación desde configuración
+            espectro_config = self.config.get('espectro_config', {})
+            rangos_fa = espectro_config.get('rangos_fa', (0.8, 3.0))
+            rangos_fv = espectro_config.get('rangos_fv', (0.6, 2.5))
+            rangos_so = espectro_config.get('rangos_so', (0.1, 4.0))
+            
+            # Validaciones según CNBDS 2023
+            if 'Fa' in params:
+                fa = params['Fa']
+                if fa < rangos_fa[0] or fa > rangos_fa[1]:
+                    warnings.append(
+                        f"Factor Fa ({fa:.2f}) fuera del rango típico ({rangos_fa[0]}-{rangos_fa[1]})"
+                    )
+            
+            if 'Fv' in params:
+                fv = params['Fv']
+                if fv < rangos_fv[0] or fv > rangos_fv[1]:
+                    warnings.append(
+                        f"Factor Fv ({fv:.2f}) fuera del rango típico ({rangos_fv[0]}-{rangos_fv[1]})"
+                    )
+            
+            if 'So' in params:
+                so = params['So']
+                if so < rangos_so[0] or so > rangos_so[1]:
+                    warnings.append(
+                        f"Parámetro So ({so:.2f}) fuera del rango típico ({rangos_so[0]}-{rangos_so[1]})"
+                    )
+            
+            # Mostrar advertencias si las hay
+            if warnings:
+                message = "⚠️ Advertencias de parámetros CNBDS 2023:\n\n" + "\n".join(f"• {w}" for w in warnings)
+                message += "\n\nVerifique que los valores sean correctos para el sitio del proyecto."
+                self.show_warning(message)
+                
+        except Exception as e:
+            print(f"Error validando parámetros Bolivia: {e}")
     
-    # Crear aplicación sísmica
-    seismic_app = SeismicAppFactory.create_app(country)
+    def calculate_bolivia_spectrum(self):
+        """Calcular espectro de respuesta según CNBDS 2023"""
+        try:
+            # Obtener parámetros desde la interfaz
+            if not hasattr(self, 'seismic_params_widget'):
+                self.show_error("Widget de parámetros no inicializado")
+                return False
+                
+            params = self.seismic_params_widget.get_parameters()
+            
+            # Parámetros necesarios para Bolivia
+            Fa = params.get('Fa', 1.86)
+            Fv = params.get('Fv', 0.63)
+            So = params.get('So', 2.9)
+            
+            # Calcular parámetros espectrales según CNBDS 2023
+            To = 0.15 * Fv / Fa
+            Ts = 0.5 * Fv / Fa
+            TL = 4 * Fv / Fa
+            SDS = 2.5 * Fa * So
+            SD1 = 1.25 * Fv * So
+            
+            # Actualizar objeto sismo con parámetros calculados
+            self.sismo.To = To
+            self.sismo.Ts = Ts
+            self.sismo.TL = TL
+            self.sismo.SDS = SDS
+            self.sismo.SD1 = SD1
+            self.sismo.Fa = Fa
+            self.sismo.Fv = Fv
+            self.sismo.So = So
+            
+            # Mostrar resultados
+            info = f"""✅ Parámetros Espectrales CNBDS 2023 Calculados:
+
+📊 PARÁMETROS DE ENTRADA:
+   Fa = {Fa:.3f}
+   Fv = {Fv:.3f}  
+   So = {So:.3f}
+
+📈 PARÁMETROS ESPECTRALES:
+   To = {To:.4f} s
+   Ts = {Ts:.4f} s  
+   TL = {TL:.4f} s
+   SDS = {SDS:.4f}
+   SD1 = {SD1:.4f}
+
+🔍 Los parámetros han sido almacenados en el modelo."""
+            
+            self.show_info(info)
+            return True
+            
+        except Exception as e:
+            self.show_error(f"Error calculando espectro Bolivia: {str(e)}")
+            return False
     
-    return qt_app, seismic_app
+    def generate_report(self):
+        """Generar reporte específico de Bolivia"""
+        try:
+            # Validar parámetros antes de generar
+            if not self._validate_required_params():
+                return
+            
+            # Calcular espectro
+            if not self.calculate_bolivia_spectrum():
+                self.show_error("No se pudo calcular el espectro. Verifique los parámetros.")
+                return
+            
+            # Seleccionar directorio de salida
+            output_dir = self.get_output_directory()
+            if not output_dir:
+                return
+            
+            # Actualizar todos los datos del modelo
+            self.update_seismic_data()
+            
+            # Generar usando memoria específica de Bolivia
+            try:
+                from apps.bolivia.memory import BoliviaMemoryGenerator
+                
+                # Crear generador de memoria
+                memory_generator = BoliviaMemoryGenerator(self.sismo, output_dir)
+                
+                # Generar memoria completa
+                tex_file = memory_generator.generate_memory()
+                
+                self.show_info(
+                    f"✅ Memoria de cálculo Bolivia generada exitosamente!\n\n"
+                    f"📁 Directorio: {output_dir}\n"
+                    f"📄 Archivo: {tex_file.name}\n\n"
+                    f"La memoria incluye:\n"
+                    f"• Parámetros sísmicos CNBDS 2023\n"
+                    f"• Espectro de respuesta\n"
+                    f"• Análisis modal (si disponible)\n"
+                    f"• Gráficos y tablas"
+                )
+                
+            except ImportError as e:
+                self.show_error(f"Error importando generador de memoria Bolivia: {e}")
+            except Exception as e:
+                self.show_error(f"Error generando memoria: {e}")
+                
+        except Exception as e:
+            self.show_error(f"Error en generación de reporte Bolivia: {str(e)}")
+    
+    def _validate_required_params(self) -> bool:
+        """Validar que todos los parámetros requeridos estén presentes"""
+        # Validar datos del proyecto
+        project_data = self.get_project_data()
+        required_project = ['proyecto', 'ubicacion', 'autor']
+        
+        for field in required_project:
+            if not project_data.get(field, '').strip():
+                self.show_error(f"❌ El campo '{field}' es requerido para generar la memoria.")
+                return False
+        
+        # Validar parámetros sísmicos
+        if not hasattr(self, 'seismic_params_widget'):
+            self.show_error("❌ Widget de parámetros sísmicos no está inicializado.")
+            return False
+            
+        params = self.seismic_params_widget.get_parameters()
+        required_params = ['Fa', 'Fv', 'So']
+        
+        for param in required_params:
+            if param not in params:
+                self.show_error(f"❌ El parámetro '{param}' es requerido para Bolivia (CNBDS 2023).")
+                return False
+        
+        return True
 
 
-def main():
-    """
-    Función principal del factory
-    ⚠️ DEPRECATED: Usar main_app.py en su lugar
-    """
-    print("⚠️  Usando factory deprecated. Use main_app.py para mejor experiencia")
-    
-    try:
-        qt_app, seismic_app = create_application()
-        seismic_app.show()
-        sys.exit(qt_app.exec_())
-    except Exception as e:
-        print(f"Error: {e}")
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
+# Función de conveniencia para crear app de Bolivia
+def create_bolivia_app():
+    """Crear aplicación específica de Bolivia con configuración por defecto"""
+    return BoliviaSeismicApp(BOLIVIA_CONFIG)

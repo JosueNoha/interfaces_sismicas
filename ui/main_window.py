@@ -1,6 +1,5 @@
 """
-Interfaz principal centralizada para aplicaciones sísmicas
-Reemplaza las interfaces duplicadas de Bolivia y Perú
+Interfaz principal unificada con ComboBoxes de combinaciones
 """
 
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -18,7 +17,6 @@ class Ui_MainWindow(object):
         
         # Layout principal
         self.main_layout = QtWidgets.QVBoxLayout(self.centralwidget)
-        self.main_layout.setObjectName("main_layout")
         
         # Header con título
         self._setup_header()
@@ -33,7 +31,6 @@ class Ui_MainWindow(object):
         
         # Status bar
         self.statusbar = QtWidgets.QStatusBar(MainWindow)
-        self.statusbar.setObjectName("statusbar")
         MainWindow.setStatusBar(self.statusbar)
         
         self.retranslateUi(MainWindow)
@@ -49,7 +46,6 @@ class Ui_MainWindow(object):
         font.setBold(True)
         self.label_title.setFont(font)
         self.label_title.setAlignment(QtCore.Qt.AlignCenter)
-        self.label_title.setObjectName("label_title")
         
         header_layout.addWidget(self.label_title)
         self.main_layout.addLayout(header_layout)
@@ -57,7 +53,6 @@ class Ui_MainWindow(object):
     def _setup_tabs(self):
         """Configurar pestañas principales"""
         self.tabWidget = QtWidgets.QTabWidget(self.centralwidget)
-        self.tabWidget.setObjectName("tabWidget")
         
         # Tab Datos Generales
         self._setup_general_tab()
@@ -73,8 +68,6 @@ class Ui_MainWindow(object):
     def _setup_general_tab(self):
         """Tab de datos generales del proyecto"""
         self.tab_general = QtWidgets.QWidget()
-        self.tab_general.setObjectName("tab_general")
-        
         layout = QtWidgets.QVBoxLayout(self.tab_general)
         
         # Grupo de información del proyecto
@@ -84,13 +77,10 @@ class Ui_MainWindow(object):
         # Campos del proyecto
         self.label_proyecto = QtWidgets.QLabel("Proyecto:")
         self.le_proyecto = QtWidgets.QLineEdit()
-        
         self.label_ubicacion = QtWidgets.QLabel("Ubicación:")
         self.le_ubicacion = QtWidgets.QLineEdit()
-        
         self.label_autor = QtWidgets.QLabel("Autor:")
         self.le_autor = QtWidgets.QLineEdit()
-        
         self.label_fecha = QtWidgets.QLabel("Fecha:")
         self.le_fecha = QtWidgets.QLineEdit()
         
@@ -116,18 +106,36 @@ class Ui_MainWindow(object):
         self.tabWidget.addTab(self.tab_general, "Datos Generales")
 
     def _setup_seismic_tab(self):
-        """Tab de análisis sísmico"""
+        """Tab de análisis sísmico con ComboBoxes de combinaciones"""
         self.tab_seismic = QtWidgets.QWidget()
-        self.tab_seismic.setObjectName("tab_seismic")
-        
         layout = QtWidgets.QVBoxLayout(self.tab_seismic)
         
-        # Scroll area para el contenido
+        # Scroll area
         scroll = QtWidgets.QScrollArea()
         scroll_widget = QtWidgets.QWidget()
         scroll_layout = QtWidgets.QVBoxLayout(scroll_widget)
         
         # Análisis Modal
+        self._setup_modal_section(scroll_layout)
+        
+        # Selección de Combinaciones
+        self._setup_combinations_section(scroll_layout)
+        
+        # Fuerzas cortantes
+        self._setup_shear_section(scroll_layout)
+        
+        # Desplazamientos y derivas
+        self._setup_displacement_section(scroll_layout)
+        
+        # Configurar scroll
+        scroll.setWidget(scroll_widget)
+        scroll.setWidgetResizable(True)
+        layout.addWidget(scroll)
+        
+        self.tabWidget.addTab(self.tab_seismic, "Análisis Sísmico")
+
+    def _setup_modal_section(self, parent_layout):
+        """Configurar sección de análisis modal"""
         self.group_modal = QtWidgets.QGroupBox("Análisis Modal")
         modal_layout = QtWidgets.QGridLayout(self.group_modal)
         
@@ -143,7 +151,6 @@ class Ui_MainWindow(object):
         self.label_tx = QtWidgets.QLabel("Periodo Tx:")
         self.le_tx = QtWidgets.QLineEdit()
         self.le_tx.setReadOnly(True)
-        
         self.label_ty = QtWidgets.QLabel("Periodo Ty:")
         self.le_ty = QtWidgets.QLineEdit()
         self.le_ty.setReadOnly(True)
@@ -153,9 +160,53 @@ class Ui_MainWindow(object):
         modal_layout.addWidget(self.label_ty, 1, 2)
         modal_layout.addWidget(self.le_ty, 1, 3)
         
-        scroll_layout.addWidget(self.group_modal)
+        parent_layout.addWidget(self.group_modal)
+
+    def _setup_combinations_section(self, parent_layout):
+        """Configurar sección de selección de combinaciones"""
+        self.group_combinations = QtWidgets.QGroupBox("Selección de Combinaciones de Carga")
+        comb_layout = QtWidgets.QGridLayout(self.group_combinations)
         
-        # Fuerzas cortantes
+        # Combinaciones Dinámicas
+        self.label_comb_dynamic = QtWidgets.QLabel("Combinaciones Dinámicas:")
+        self.cb_comb_dynamic = QtWidgets.QComboBox()
+        self.cb_comb_dynamic.setEditable(True)
+        self.b_refresh_dynamic = QtWidgets.QPushButton("↻")
+        self.b_refresh_dynamic.setMaximumWidth(30)
+        self.b_refresh_dynamic.setToolTip("Actualizar combinaciones dinámicas")
+        
+        comb_layout.addWidget(self.label_comb_dynamic, 0, 0)
+        comb_layout.addWidget(self.cb_comb_dynamic, 0, 1)
+        comb_layout.addWidget(self.b_refresh_dynamic, 0, 2)
+        
+        # Combinaciones Estáticas
+        self.label_comb_static = QtWidgets.QLabel("Combinaciones Estáticas:")
+        self.cb_comb_static = QtWidgets.QComboBox()
+        self.cb_comb_static.setEditable(True)
+        self.b_refresh_static = QtWidgets.QPushButton("↻")
+        self.b_refresh_static.setMaximumWidth(30)
+        self.b_refresh_static.setToolTip("Actualizar combinaciones estáticas")
+        
+        comb_layout.addWidget(self.label_comb_static, 1, 0)
+        comb_layout.addWidget(self.cb_comb_static, 1, 1)
+        comb_layout.addWidget(self.b_refresh_static, 1, 2)
+        
+        # Combinaciones de Desplazamientos
+        self.label_comb_displacement = QtWidgets.QLabel("Combinaciones Desplazamientos:")
+        self.cb_comb_displacement = QtWidgets.QComboBox()
+        self.cb_comb_displacement.setEditable(True)
+        self.b_refresh_displacement = QtWidgets.QPushButton("↻")
+        self.b_refresh_displacement.setMaximumWidth(30)
+        self.b_refresh_displacement.setToolTip("Actualizar combinaciones desplazamientos")
+        
+        comb_layout.addWidget(self.label_comb_displacement, 2, 0)
+        comb_layout.addWidget(self.cb_comb_displacement, 2, 1)
+        comb_layout.addWidget(self.b_refresh_displacement, 2, 2)
+        
+        parent_layout.addWidget(self.group_combinations)
+
+    def _setup_shear_section(self, parent_layout):
+        """Configurar sección de fuerzas cortantes"""
         self.group_shear = QtWidgets.QGroupBox("Fuerzas Cortantes")
         shear_layout = QtWidgets.QGridLayout(self.group_shear)
         
@@ -166,7 +217,6 @@ class Ui_MainWindow(object):
         self.label_vestx = QtWidgets.QLabel("Vestx:")
         self.le_vestx = QtWidgets.QLineEdit()
         self.le_vestx.setReadOnly(True)
-        
         self.label_vesty = QtWidgets.QLabel("Vesty:")
         self.le_vesty = QtWidgets.QLineEdit()
         self.le_vesty.setReadOnly(True)
@@ -176,9 +226,10 @@ class Ui_MainWindow(object):
         shear_layout.addWidget(self.label_vesty, 1, 2)
         shear_layout.addWidget(self.le_vesty, 1, 3)
         
-        scroll_layout.addWidget(self.group_shear)
-        
-        # Desplazamientos y derivas
+        parent_layout.addWidget(self.group_shear)
+
+    def _setup_displacement_section(self, parent_layout):
+        """Configurar sección de desplazamientos y derivas"""
         self.group_displacements = QtWidgets.QGroupBox("Desplazamientos y Derivas")
         displ_layout = QtWidgets.QGridLayout(self.group_displacements)
         
@@ -188,20 +239,11 @@ class Ui_MainWindow(object):
         displ_layout.addWidget(self.b_desplazamiento, 0, 0)
         displ_layout.addWidget(self.b_derivas, 0, 1)
         
-        scroll_layout.addWidget(self.group_displacements)
-        
-        # Configurar scroll
-        scroll.setWidget(scroll_widget)
-        scroll.setWidgetResizable(True)
-        layout.addWidget(scroll)
-        
-        self.tabWidget.addTab(self.tab_seismic, "Análisis Sísmico")
+        parent_layout.addWidget(self.group_displacements)
 
     def _setup_memory_tab(self):
         """Tab de memoria de cálculo"""
         self.tab_memory = QtWidgets.QWidget()
-        self.tab_memory.setObjectName("tab_memory")
-        
         layout = QtWidgets.QVBoxLayout(self.tab_memory)
         
         # Scroll area
@@ -210,6 +252,20 @@ class Ui_MainWindow(object):
         scroll_layout = QtWidgets.QVBoxLayout(scroll_widget)
         
         # Imágenes
+        self._setup_images_section(scroll_layout)
+        
+        # Descripciones
+        self._setup_descriptions_section(scroll_layout)
+        
+        # Configurar scroll
+        scroll.setWidget(scroll_widget)
+        scroll.setWidgetResizable(True)
+        layout.addWidget(scroll)
+        
+        self.tabWidget.addTab(self.tab_memory, "Memoria")
+
+    def _setup_images_section(self, parent_layout):
+        """Configurar sección de imágenes"""
         self.group_images = QtWidgets.QGroupBox("Imágenes del Proyecto")
         images_layout = QtWidgets.QGridLayout(self.group_images)
         
@@ -242,9 +298,10 @@ class Ui_MainWindow(object):
         images_layout.addWidget(self.label_defy, 2, 0)
         images_layout.addWidget(self.b_defY, 2, 1)
         
-        scroll_layout.addWidget(self.group_images)
-        
-        # Descripciones
+        parent_layout.addWidget(self.group_images)
+
+    def _setup_descriptions_section(self, parent_layout):
+        """Configurar sección de descripciones"""
         self.group_descriptions = QtWidgets.QGroupBox("Descripciones")
         desc_layout = QtWidgets.QGridLayout(self.group_descriptions)
         
@@ -275,14 +332,7 @@ class Ui_MainWindow(object):
         desc_layout.addWidget(self.b_cargas, 2, 1)
         desc_layout.addWidget(self.lb_cargas, 2, 2)
         
-        scroll_layout.addWidget(self.group_descriptions)
-        
-        # Configurar scroll
-        scroll.setWidget(scroll_widget)
-        scroll.setWidgetResizable(True)
-        layout.addWidget(scroll)
-        
-        self.tabWidget.addTab(self.tab_memory, "Memoria")
+        parent_layout.addWidget(self.group_descriptions)
 
     def _setup_bottom_buttons(self):
         """Configurar botones inferiores"""
@@ -321,13 +371,3 @@ class Ui_MainWindow(object):
         # Botones principales
         self.b_actualizar.setText(_translate("MainWindow", "Actualizar Datos"))
         self.b_reporte.setText(_translate("MainWindow", "Generar Reporte"))
-
-
-if __name__ == "__main__":
-    import sys
-    app = QtWidgets.QApplication(sys.argv)
-    MainWindow = QtWidgets.QMainWindow()
-    ui = Ui_MainWindow()
-    ui.setupUi(MainWindow)
-    MainWindow.show()
-    sys.exit(app.exec_())

@@ -1,26 +1,21 @@
 """
-Clase base mejorada para aplicaciones sísmicas - Centralizada y escalable
+Clase base mejorada para aplicaciones sísmicas con manejo de combinaciones ETABS
 """
 
 from PyQt5.QtWidgets import QMainWindow, QFileDialog, QMessageBox
 from PyQt5.QtCore import QDate
-from PyQt5.QtGui import QPixmap, QIcon
+from PyQt5.QtGui import QIcon
 from pathlib import Path
 import os
 
 from core.base.seismic_base import SeismicBase
-from ui.widgets.seismic_params_widget import SeismicParamsWidget
-from core.utils.etabs_utils import connect_to_etabs, get_modal_data, get_drift_data, get_displacement_data, get_story_forces
+from core.utils.etabs_utils import connect_to_etabs, get_unique_cases
+
 
 class AppBase(QMainWindow):
-    """Clase base centralizada para aplicaciones de análisis sísmico"""
+    """Clase base mejorada para aplicaciones sísmicas"""
     
     def __init__(self, config, ui_class):
-        """
-        Inicializar aplicación base
-        config: configuración específica del país
-        ui_class: clase de interfaz generada (Ui_MainWindow)
-        """
         super().__init__()
         
         self.config = config
@@ -30,56 +25,25 @@ class AppBase(QMainWindow):
         self.ui = ui_class()
         self.ui.setupUi(self)
         
-        # Configurar título y ventana
-        self.setWindowTitle(config.get('window_title', 'Análisis Sísmico'))
-        self._setup_icon()
-        
-        # Widget de parámetros sísmicos dinámico
-        self._setup_seismic_params_widget()
-        
-        # Diálogo de descripciones
-        from shared.dialogs import DescriptionsDialog
-        self.ui_descriptions = DescriptionsDialog()
-        
-        # Conectar señales comunes
-        self._connect_common_signals()
-        
-        # Inicializar valores por defecto
-        self._init_default_values()
-        
-        # Variables ETABS
+        # Conexión ETABS
         self.ETABSObject = None
         self.SapModel = None
-        self.etabs_connected = False
+        
+        # Configurar funcionalidad común
+        self._setup_icon()
+        self._connect_common_signals()
+        self._init_default_values()
+        self._setup_combinations()
 
     def _setup_icon(self):
         """Configurar icono de la aplicación"""
-        icon_path = self.config.get('icon_path', 'shared_resources/yabar_logo.ico')
-        if os.path.exists(icon_path):
+        icon_path = self.config.get('icon_path')
+        if icon_path and os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
 
-    def _setup_seismic_params_widget(self):
-        """Configurar widget de parámetros sísmicos específico del país"""
-        if not hasattr(self.ui, 'seismic_params_layout'):
-            return
-            
-        # Crear widget dinámico según configuración del país
-        self.seismic_params_widget = SeismicParamsWidget(self.config, self)
-        self.ui.seismic_params_layout.addWidget(self.seismic_params_widget)
-        
-        # Conectar cambios de parámetros
-        self.seismic_params_widget.connect_param_changed(self._on_seismic_params_changed)
-        
-        # Aplicar valores por defecto del país
-        defaults = self.config.get('parametros_defecto', {})
-        seismic_defaults = {k: v for k, v in defaults.items() 
-                           if k not in ['proyecto', 'ubicacion', 'autor', 'fecha']}
-        if seismic_defaults:
-            self.seismic_params_widget.set_parameters(seismic_defaults)
-
     def _connect_common_signals(self):
-        """Conectar señales comunes entre aplicaciones"""
-        # Botones de carga de imágenes
+        """Conectar señales comunes"""
+        # Botones de imágenes
         self.ui.b_portada.clicked.connect(lambda: self.load_image('portada'))
         self.ui.b_planta.clicked.connect(lambda: self.load_image('planta'))
         self.ui.b_3D.clicked.connect(lambda: self.load_image('3d'))
@@ -91,71 +55,161 @@ class AppBase(QMainWindow):
         self.ui.b_modelamiento.clicked.connect(lambda: self.open_description_dialog('modelamiento'))
         self.ui.b_cargas.clicked.connect(lambda: self.open_description_dialog('cargas'))
         
-        # Botones principales
-        self.ui.b_actualizar.clicked.connect(self.update_seismic_data)
+        # Botón generar reporte
         self.ui.b_reporte.clicked.connect(self.generate_report)
         
-        # ✅ IMPLEMENTACIÓN del eventListener b_modal
-        if hasattr(self.ui, 'b_modal'):
-            self.ui.b_modal.clicked.connect(self.show_modal_analysis)
+        # Conectar botones de combinaciones
+        self._connect_combination_signals()
         
-        # Otros botones de análisis
-        if hasattr(self.ui, 'b_cortantes'):
-            self.ui.b_cortantes.clicked.connect(self.calculate_shear_forces)
-        if hasattr(self.ui, 'b_desplazamiento'):
-            self.ui.b_desplazamiento.clicked.connect(self.calculate_displacements)
-        if hasattr(self.ui, 'b_derivas'):
-            self.ui.b_derivas.clicked.connect(self.calculate_drifts)
+        # Agregar botón para actualizar todas las combinaciones
+        if hasattr(self.ui, 'seismic_params_layout'):
+            from PyQt5.QtWidgets import QPushButton
+            self.b_refresh_all = QPushButton("🔄 Actualizar Todas las Combinaciones")
+            self.b_refresh_all.clicked.connect(self.refresh_all_combinations)
+            layout = self.ui.seismic_params_layout
+            current_row = layout.rowCount()
+            layout.addWidget(self.b_refresh_all, current_row, 0, 1, 4)
+
+    def _connect_combination_signals(self):
+        """Conectar señales relacionadas con combinaciones"""
+        from core.utils.etabs_utils import update_seismic_combinations
+        self.ui.b_refresh_dynamic.clicked.connect(lambda _: update_seismic_combinations([self.ui.cb_comb_dynamic],self.SapModel))
+        self.ui.b_refresh_static.clicked.connect(lambda _: update_seismic_combinations([self.ui.cb_comb_static],self.SapModel))
+        self.ui.b_refresh_displacement.clicked.connect(lambda _: update_seismic_combinations([self.ui.cb_comb_displacement],self.SapModel))
+
+    def _setup_combinations(self):
+        """Configurar ComboBoxes de combinaciones con valores por defecto"""
+        # Obtener casos por defecto del país
+        load_cases = self.config.get('load_cases', {})
+        
+        # Configurar combinaciones dinámicas por defecto
+        dynamic_cases = load_cases.get('dinamico_x', []) + load_cases.get('dinamico_y', [])
+        for case in set(dynamic_cases):  # Usar set para eliminar duplicados
+            self.ui.cb_comb_dynamic.addItem(case)
+        
+        # Configurar combinaciones estáticas por defecto
+        static_cases = load_cases.get('estatico_x', []) + load_cases.get('estatico_y', [])
+        for case in set(static_cases):
+            self.ui.cb_comb_static.addItem(case)
+        
+        # Configurar combinaciones de desplazamiento (usar dinámicas por defecto)
+        for case in set(dynamic_cases):
+            self.ui.cb_comb_displacement.addItem(case)
+
+    def _refresh_dynamic_combinations(self):
+        """Actualizar combinaciones dinámicas desde ETABS"""
+        if not self._connect_etabs():
+            return
+        
+        from core.utils.etabs_utils import update_seismic_combinations
+        
+        success = update_seismic_combinations([self.ui.cb_comb_dynamic], self.SapModel)
+        
+        if success:
+            count = self.ui.cb_comb_dynamic.count()
+            self.show_info(f"Combinaciones dinámicas actualizadas: {count} elementos")
+        else:
+            self.show_error("Error actualizando combinaciones dinámicas desde ETABS")
+
+    # def _refresh_static_combinations(self):
+    #     """Actualizar combinaciones estáticas desde ETABS"""
+    #     if not self._connect_etabs():
+    #         return
+        
+    #     try:
+    #         # Obtener todas las combinaciones
+    #         _, load_combos, _ = self.SapModel.RespCombo.GetNameList()
+    #         load_combos = [combo for combo in load_combos if combo[0] != '~' and 'Modal' not in combo]
+            
+    #         # Obtener casos sísmicos para filtrar
+    #         _, load_cases, _ = self.SapModel.LoadCases.GetNameList()
+    #         seism_cases = [case for case in load_cases if 
+    #                       case[0] != '~' and 'Modal' not in case and
+    #                       self.SapModel.LoadCases.GetTypeOAPI_1(case)[2] == 5]
+            
+    #         # Filtrar combinaciones no sísmicas (estáticas)
+    #         static_combos = []
+    #         for combo in load_combos:
+    #             try:
+    #                 unique_cases = set(get_unique_cases(self.SapModel, combo))
+    #                 # Si no intersecta con casos sísmicos, es estática
+    #                 if not unique_cases.intersection(set(seism_cases)):
+    #                     static_combos.append(combo)
+    #             except:
+    #                 continue
+            
+    #         # Actualizar ComboBox
+    #         current_selection = self.ui.cb_comb_static.currentText()
+    #         self.ui.cb_comb_static.clear()
+    #         self.ui.cb_comb_static.addItems(static_combos)
+            
+    #         # Restaurar selección si existe
+    #         if current_selection in static_combos:
+    #             self.ui.cb_comb_static.setCurrentText(current_selection)
+            
+    #         self.show_info(f"Combinaciones estáticas actualizadas: {len(static_combos)} elementos")
+            
+    #     except Exception as e:
+    #         self.show_error(f"Error actualizando combinaciones estáticas: {e}")
+
+    # def _refresh_displacement_combinations(self):
+    #     """Actualizar combinaciones de desplazamiento desde ETABS"""
+    #     if not self._connect_etabs():
+    #         return
+        
+    #     from core.utils.etabs_utils import update_seismic_combinations
+        
+    #     success = update_seismic_combinations([self.ui.cb_comb_displacement], self.SapModel)
+        
+    #     if success:
+    #         count = self.ui.cb_comb_displacement.count()
+    #         self.show_info(f"Combinaciones de desplazamiento actualizadas: {count} elementos")
+    #     else:
+    #         self.show_error("Error actualizando combinaciones de desplazamiento")
+
+    def refresh_all_combinations(self):
+        """Actualizar todas las combinaciones de una vez"""
+        if not self._connect_etabs():
+            return
+        
+        from core.utils.etabs_utils import update_seismic_combinations
+        
+        try:
+            # Actualizar dinámicas y desplazamientos (usan la misma lógica)
+            seismic_combos = [self.ui.cb_comb_dynamic, self.ui.cb_comb_static, self.ui.cb_comb_displacement]
+            success_seismic = update_seismic_combinations(seismic_combos, self.SapModel)
+            
+            if success_seismic:
+                self.show_info("✅ Todas las combinaciones actualizadas desde ETABS")
+            else:
+                self.show_warning("⚠️ Actualización parcial - revise la conexión con ETABS")
+                
+        except Exception as e:
+            self.show_error(f"Error actualizando combinaciones: {e}")
+
+    def _connect_etabs(self) -> bool:
+        """Conectar con ETABS si no está conectado"""
+        if self.SapModel is None:
+            self.ETABSObject, self.SapModel = connect_to_etabs()
+            if self.SapModel is None:
+                self.show_warning("No se pudo conectar con ETABS. Verifique que esté abierto.")
+                return False
+        return True
 
     def _init_default_values(self):
         """Inicializar valores por defecto"""
-        # Fecha actual
+        # Configurar fecha actual
         current_date = QDate.currentDate()
         self.ui.le_fecha.setText(current_date.toString("dd/MM/yyyy"))
         
-        # Datos del proyecto desde configuración
+        # Aplicar valores por defecto del país
         defaults = self.config.get('parametros_defecto', {})
-        project_fields = {
-            'ubicacion': 'le_ubicacion',
-            'autor': 'le_autor', 
-            'proyecto': 'le_proyecto'
-        }
-        
-        for key, ui_element in project_fields.items():
-            if key in defaults and hasattr(self.ui, ui_element):
-                getattr(self.ui, ui_element).setText(str(defaults[key]))
-
-    def _on_seismic_params_changed(self):
-        """Callback cuando cambian parámetros sísmicos"""
-        if hasattr(self, 'seismic_params_widget'):
-            params = self.seismic_params_widget.get_parameters()
-            self._update_sismo_parameters(params)
-
-    def _update_sismo_parameters(self, params):
-        """Actualizar parámetros del modelo sísmico"""
-        for key, value in params.items():
-            setattr(self.sismo, key, value)
-
-    # ===== MÉTODOS COMUNES DE INTERFAZ =====
-
-    def connect_etabs(self):
-        """Conectar con ETABS"""
-        try:
-            self.ETABSObject, self.SapModel = connect_to_etabs()
-            
-            if self.SapModel is not None:
-                self.etabs_connected = True
-                self.show_info("✅ Conectado a ETABS exitosamente")
-                return True
-            else:
-                self.etabs_connected = False
-                self.show_error("❌ No se pudo conectar a ETABS\nVerifique que ETABS esté abierto")
-                return False
-                
-        except Exception as e:
-            self.etabs_connected = False
-            self.show_error(f"Error conectando a ETABS: {e}")
-            return False
+        if 'proyecto' in defaults:
+            self.ui.le_proyecto.setText(defaults['proyecto'])
+        if 'ubicacion' in defaults:
+            self.ui.le_ubicacion.setText(defaults['ubicacion'])
+        if 'autor' in defaults:
+            self.ui.le_autor.setText(defaults['autor'])
 
     def load_image(self, image_type: str):
         """Cargar imagen del tipo especificado"""
@@ -167,29 +221,37 @@ class AppBase(QMainWindow):
         )
         
         if file_path:
-            # Guardar ruta en URLs de imágenes
+            # Guardar ruta en el objeto sismo
             self.sismo.urls_imagenes[image_type] = file_path
             self.show_info(f"Imagen {image_type} cargada: {Path(file_path).name}")
 
     def open_description_dialog(self, desc_type: str):
         """Abrir diálogo de descripción"""
+        from shared.dialogs.descriptions_dialog import get_description
+        
+        # Títulos según tipo
         titles = {
             'descripcion': 'Descripción de la Estructura',
-            'modelamiento': 'Criterios de Modelamiento', 
+            'modelamiento': 'Criterios de Modelamiento',
             'cargas': 'Descripción de Cargas Consideradas'
         }
         
-        self.ui_descriptions.set_description_type(desc_type, titles.get(desc_type))
-        
-        # Cargar descripción existente
+        # Obtener descripción existente
         existing_desc = self.sismo.descriptions.get(desc_type, '')
-        self.ui_descriptions.set_existing_text(existing_desc)
         
         # Mostrar diálogo
-        if self.ui_descriptions.exec_() == self.ui_descriptions.Accepted:
-            texto = self.ui_descriptions.get_description_text()
+        texto, accepted = get_description(
+            parent=self,
+            desc_type=desc_type,
+            title=titles.get(desc_type),
+            existing_text=existing_desc
+        )
+        
+        if accepted:
+            # Actualizar descripción en el modelo
+            self.sismo.descriptions[desc_type] = texto
             
-            # Actualizar label correspondiente
+            # Actualizar label en interfaz
             label_mapping = {
                 'descripcion': self.ui.lb_descripcion,
                 'modelamiento': self.ui.lb_modelamiento,
@@ -198,10 +260,10 @@ class AppBase(QMainWindow):
             
             label = label_mapping.get(desc_type)
             if label:
-                label.setText('Descripción cargada' if texto else 'Sin Descripción')
-            
-            # Guardar en objeto sismo
-            self.sismo.descriptions[desc_type] = texto
+                if texto.strip():
+                    label.setText('Descripción cargada')
+                else:
+                    label.setText('Sin Descripción')
 
     def get_project_data(self):
         """Obtener datos del proyecto desde interfaz"""
@@ -212,193 +274,24 @@ class AppBase(QMainWindow):
             'fecha': self.ui.le_fecha.text()
         }
 
-    def update_seismic_data(self):
+    def get_selected_combinations(self):
+        """Obtener combinaciones seleccionadas"""
+        return {
+            'dynamic': self.ui.cb_comb_dynamic.currentText(),
+            'static': self.ui.cb_comb_static.currentText(),
+            'displacement': self.ui.cb_comb_displacement.currentText()
+        }
+
+    def update_sismo_data(self):
         """Actualizar datos del objeto sismo desde interfaz"""
         # Datos del proyecto
         project_data = self.get_project_data()
         for key, value in project_data.items():
             setattr(self.sismo, key, value)
         
-        # Parámetros sísmicos
-        if hasattr(self, 'seismic_params_widget'):
-            seismic_params = self.seismic_params_widget.get_parameters()
-            self._update_sismo_parameters(seismic_params)
-        
-        self.show_info("Datos actualizados correctamente")
-
-    # ===== MÉTODOS DE ANÁLISIS (implementación básica) =====
-
-    def show_modal_analysis(self):
-        """Mostrar análisis modal"""
-        if not self.etabs_connected:
-            if not self.connect_etabs():
-                return
-        
-        try:
-            modal_data = get_modal_data(self.SapModel)
-            if modal_data is not None and not modal_data.empty:
-                # Almacenar en objeto sismo
-                self.sismo.tables.modal = modal_data
-                
-                # Obtener períodos fundamentales
-                mode_x = modal_data[modal_data.UX == max(modal_data.UX)].index[0]
-                mode_y = modal_data[modal_data.UY == max(modal_data.UY)].index[0]
-                Tx = modal_data['Period'][mode_x] if not modal_data.empty else 0
-                Ty = modal_data['Period'][mode_y] if not modal_data.empty else 0
-                
-                # Actualizar interfaz
-                if hasattr(self.ui, 'le_tx'):
-                    self.ui.le_tx.setText(f"{Tx:.4f}")
-                if hasattr(self.ui, 'le_ty'):
-                    self.ui.le_ty.setText(f"{Ty:.4f}")
-                
-                # Almacenar en modelo
-                self.sismo.data.Tx = Tx
-                self.sismo.data.Ty = Ty
-                
-                # Mostrar resumen
-                sum_ux = modal_data['SumUX'].max()
-                sum_uy = modal_data['SumUY'].max()
-                
-                self.show_info(f"""✅ Análisis Modal Completado:
-
-📊 PERÍODOS FUNDAMENTALES:
-Tx = {Tx:.4f} s
-Ty = {Ty:.4f} s
-
-📈 MASA PARTICIPATIVA:
-ΣUX = {sum_ux:.1f}%
-ΣUY = {sum_uy:.1f}%
-
-🔍 Modos analizados: {len(modal_data)}""")
-                
-            else:
-                self.show_warning("No se encontraron datos modales\nVerifique que el análisis modal esté completo")
-                
-        except Exception as e:
-            self.show_error(f"Error obteniendo datos modales: {e}")
-
-    def calculate_shear_forces(self):
-        """Calcular fuerzas cortantes"""
-        if not self.etabs_connected:
-            if not self.connect_etabs():
-                return
-        
-        try:
-            story_forces = get_story_forces(self.SapModel)
-            
-            if story_forces is not None and not story_forces.empty:
-                # Obtener cortante basal (último piso)
-                base_story = story_forces['Story'].iloc[-1]
-                base_forces = story_forces[
-                    (story_forces['Story'] == base_story) & 
-                    (story_forces['Location'] == 'Bottom')
-                ]
-                
-                if not base_forces.empty:
-                    # Buscar casos sísmicos dinámicos
-                    load_cases = self.config.get('load_cases', {})
-                    dynamic_cases = load_cases.get('dinamico_x', []) + load_cases.get('dinamico_y', [])
-                    
-                    Vx = 0
-                    Vy = 0
-                    
-                    for case in dynamic_cases:
-                        case_data = base_forces[base_forces['OutputCase'].str.contains(case, na=False)]
-                        if not case_data.empty:
-                            if 'X' in case:
-                                Vx = max(Vx, abs(case_data['VX'].iloc[0]) if 'VX' in case_data.columns else 0)
-                            if 'Y' in case:
-                                Vy = max(Vy, abs(case_data['VY'].iloc[0]) if 'VY' in case_data.columns else 0)
-                    
-                    # Actualizar interfaz
-                    if hasattr(self.ui, 'le_vestx'):
-                        self.ui.le_vestx.setText(f"{Vx:.2f}")
-                    if hasattr(self.ui, 'le_vesty'):
-                        self.ui.le_vesty.setText(f"{Vy:.2f}")
-                    
-                    # Almacenar en modelo
-                    self.sismo.data.Vdx = Vx
-                    self.sismo.data.Vdy = Vy
-                    
-                    self.show_info(f"""✅ Cortantes Calculados:
-
-🔧 CORTANTE BASAL DINÁMICO:
-Vx = {Vx:.2f} kN
-Vy = {Vy:.2f} kN""")
-                    
-            else:
-                self.show_warning("No se encontraron fuerzas de piso\nVerifique el análisis en ETABS")
-                
-        except Exception as e:
-            self.show_error(f"Error calculando cortantes: {e}")
-
-    def calculate_displacements(self):
-        """Calcular desplazamientos"""
-        if not self.etabs_connected:
-            if not self.connect_etabs():
-                return
-        
-        try:
-            disp_data = get_displacement_data(self.SapModel)
-            
-            if disp_data is not None and not disp_data.empty:
-                # Almacenar en objeto sismo
-                self.sismo.tables.displacements = disp_data
-                
-                max_disp_x = disp_data['Maximum_x'].max()
-                max_disp_y = disp_data['Maximum_y'].max()
-                
-                self.show_info(f"""✅ Desplazamientos Calculados:
-
-📐 DESPLAZAMIENTOS MÁXIMOS:
-X = {max_disp_x:.1f} mm
-Y = {max_disp_y:.1f} mm
-
-📋 Datos por piso: {len(disp_data)} niveles""")
-            
-            else:
-                self.show_warning("No se encontraron datos de desplazamiento")
-                
-        except Exception as e:
-            self.show_error(f"Error calculando desplazamientos: {e}")
-
-    def calculate_drifts(self):
-        """Calcular derivas"""
-        if not self.etabs_connected:
-            if not self.connect_etabs():
-                return
-        
-        try:
-            drift_data = get_drift_data(self.SapModel)
-            
-            if drift_data is not None and not drift_data.empty:
-                # Almacenar en objeto sismo
-                self.sismo.tables.drift_table = drift_data
-                
-                max_drift_x = drift_data['DriftX'].max() if 'DriftX' in drift_data.columns else 0
-                max_drift_y = drift_data['DriftY'].max() if 'DriftY' in drift_data.columns else 0
-                
-                # Límite típico (7‰ para concreto)
-                limit = 0.007
-                cumple_x = "✓" if max_drift_x <= limit else "✗"
-                cumple_y = "✓" if max_drift_y <= limit else "✗"
-                
-                self.show_info(f"""✅ Derivas Calculadas:
-
-📊 DERIVAS MÁXIMAS:
-X = {max_drift_x:.4f} {cumple_x} (límite: 0.007)
-Y = {max_drift_y:.4f} {cumple_y} (límite: 0.007)
-
-📋 Datos por piso: {len(drift_data)} niveles""")
-                
-            else:
-                self.show_warning("No se encontraron datos de deriva")
-                
-        except Exception as e:
-            self.show_error(f"Error calculando derivas: {e}")
-
-    # ===== MÉTODOS DE UTILIDAD =====
+        # Combinaciones seleccionadas
+        combinations = self.get_selected_combinations()
+        self.sismo.loads.selected_combinations = combinations
 
     def show_error(self, message: str):
         """Mostrar mensaje de error"""
@@ -414,34 +307,26 @@ Y = {max_drift_y:.4f} {cumple_y} (límite: 0.007)
 
     def get_output_directory(self) -> str:
         """Seleccionar directorio de salida para reportes"""
-        return QFileDialog.getExistingDirectory(
+        directory = QFileDialog.getExistingDirectory(
             self,
             "Seleccionar directorio de salida",
             str(Path.home() / "Documents")
         )
+        return directory
 
-    def show_image(self, image_path: str, title: str = "Imagen"):
-        """Mostrar imagen en ventana emergente"""
-        if not os.path.exists(image_path):
-            self.show_error(f"No se encontró la imagen: {image_path}")
-            return
-        
-        dialog = QMessageBox(self)
-        dialog.setWindowTitle(title)
-        
-        pixmap = QPixmap(image_path)
-        if pixmap.width() > 800 or pixmap.height() > 600:
-            pixmap = pixmap.scaled(800, 600, aspectRatioMode=1)
-        
-        dialog.setIconPixmap(pixmap)
-        dialog.exec_()
-
-    # ===== MÉTODOS VIRTUALES PARA CLASES DERIVADAS =====
-
+    # Métodos virtuales para ser implementados en clases derivadas
     def generate_report(self):
         """Generar reporte - implementar en clases derivadas"""
-        self.show_warning("Función de reporte debe implementarse en aplicación específica")
+        self.show_warning("Función de reporte no implementada para esta aplicación")
 
-    def validate_country_params(self):
-        """Validar parámetros específicos del país - implementar en clases derivadas"""
+    def calculate_shear_forces(self):
+        """Calcular fuerzas cortantes - implementar en clases derivadas"""
+        pass
+
+    def calculate_displacements(self):
+        """Calcular desplazamientos - implementar en clases derivadas"""
+        pass
+
+    def calculate_drifts(self):
+        """Calcular derivas - implementar en clases derivadas"""
         pass

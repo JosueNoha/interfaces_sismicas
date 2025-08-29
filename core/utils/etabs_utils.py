@@ -137,12 +137,18 @@ def get_unique_cases(SapModel, combo_name):
     Returns:
         list: Lista de casos únicos en la combinación
     """
+    unique_cases = []
     try:
-        [NumberItems, CaseName, ScaleFactor] = SapModel.RespCombo.GetCaseList(combo_name)
-        return list(set(CaseName))
+        _,case_types,case_names,*_ = SapModel.RespCombo.GetCaseList(combo_name)
+        for case_type,case_name in zip(case_types,case_names):
+            if case_type == 0:
+                unique_cases += [case_name]
+            elif case_type == 1:
+                unique_cases += get_unique_cases(SapModel,case_name)
+        return list(set(unique_cases))
     except Exception as e:
         print(f"Error obteniendo casos de combinación '{combo_name}': {e}")
-        return []
+        return unique_cases
 
 
 def get_load_cases(SapModel, case_type=None):
@@ -519,3 +525,69 @@ def process_drift_data(drift_data, max_drift=0.007):
     except Exception as e:
         print(f"Error procesando derivas: {e}")
         return None
+
+def update_seismic_combinations(ui_combo_widgets, SapModel=None):
+    """
+    Actualizar ComboBoxes con combinaciones sísmicas desde ETABS
+    Similar al código original pero centralizado
+    
+    Args:
+        ui_combo_widgets: Lista de widgets QComboBox a actualizar
+        SapModel: Modelo ETABS (se conecta automáticamente si es None)
+    
+    Returns:
+        bool: True si se actualizó correctamente
+    """
+    try:
+        # Conectar a ETABS si no se proporciona SapModel
+        if SapModel is None:
+            _, SapModel = connect_to_etabs()
+            if SapModel is None:
+                return False
+        
+        # Obtener casos de carga (siguiendo lógica original)
+        _, load_cases, _ = SapModel.LoadCases.GetNameList()
+        load_cases = [load for load in load_cases if load[0] != '~' and 'Modal' not in load]
+        
+        # Filtrar casos sísmicos (tipo 5)
+        seism_cases = []
+        for case in load_cases:
+            try:
+                case_type = SapModel.LoadCases.GetTypeOAPI_1(case)[2]
+                if case_type == 5:
+                    seism_cases.append(case)
+            except:
+                continue
+        
+        # Obtener combinaciones de carga
+        _, load_combos, _ = SapModel.RespCombo.GetNameList()
+        load_combos = [combo for combo in load_combos if combo[0] != '~' and 'Modal' not in combo]
+        
+        # Filtrar combinaciones sísmicas
+        seism_combos = []
+        for combo in load_combos:
+            try:
+                unique_cases = set(get_unique_cases(SapModel, combo))
+                if unique_cases.intersection(set(seism_cases)):
+                    seism_combos.append(combo)
+            except:
+                continue
+        
+        # Actualizar todos los ComboBoxes
+        all_seismic = seism_cases + seism_combos
+        
+        for cbox in ui_combo_widgets:
+            if cbox is not None:
+                current_selection = cbox.currentText()
+                cbox.clear()
+                cbox.addItems(all_seismic)
+                
+                # Restaurar selección si aún existe
+                if current_selection in all_seismic:
+                    cbox.setCurrentText(current_selection)
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error actualizando combinaciones sísmicas: {e}")
+        return False

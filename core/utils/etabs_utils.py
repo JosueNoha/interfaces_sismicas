@@ -15,11 +15,11 @@ def connect_to_etabs():
         tuple: (ETABSObject, SapModel) si conexión exitosa, (None, None) si falla
     """
     try:
-        import comtypes.client as capi
+        import comtypes.client
         
         # Intentar conectar con instancia existente de ETABS
-        helper = capi.CreateObject('ETABSv1.Helper')
-        helper = helper.QueryInterface(capi.gen.ETABSv1.cHelper)
+        helper = comtypes.client.CreateObject('ETABSv1.Helper')
+        helper = helper.QueryInterface(comtypes.gen.ETABSv1.cHelper)
         
         # Obtener objeto activo de ETABS
         myETABSObject = helper.GetObject("CSI.ETABS.API.ETABSObject")
@@ -84,8 +84,8 @@ def get_table(SapModel, table_name):
             return False, None
         
         # Obtener datos de la tabla
-        [FieldsKeysIncluded, GroupName, TableVersion, FieldNames, TableData, NumberRecords] = \
-            SapModel.DatabaseTables.GetTableForDisplayArray(table_name, "", False)
+        [_, _ ,FieldsKeysIncluded, NumberRecords, TableData,_] = \
+           SapModel.DatabaseTables.GetTableForDisplayArray(table_name,FieldKeyList =  "", GroupName = "")
         
         if NumberRecords == 0:
             print(f"Tabla '{table_name}' sin registros")
@@ -93,14 +93,14 @@ def get_table(SapModel, table_name):
         
         # Convertir a DataFrame de pandas
         if len(TableData) > 0:
-            columns = TableData[0]  # Primera fila son los headers
-            data = TableData[1:]    # Resto son los datos
+            columns = FieldsKeysIncluded  # Primera fila son los headers
+            data = np.array(TableData).reshape(NumberRecords,len(columns))   # Resto son los datos
             df = pd.DataFrame(data, columns=columns)
             
             # Intentar convertir columnas numéricas
             for col in df.columns:
-                if col not in ['OutputCase', 'CaseType', 'StepType', 'Story', 'Pier', 'Spandrel', 'Location']:
-                    df[col] = pd.to_numeric(df[col], errors='ignore')
+                if col not in ['Case','OutputCase', 'CaseType', 'StepType', 'Story', 'Pier', 'Spandrel', 'Location']:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
             
             return True, df
         else:
@@ -263,7 +263,7 @@ def get_modal_data(SapModel):
     success, data = get_table(SapModel, 'Modal Participating Mass Ratios')
     if success and data is not None:
         # Filtrar solo resultados modales
-        modal_data = data[data['OutputCase'] == 'MODAL'].copy()
+        modal_data = data[data['Case'] == 'Modal'].copy()
         return modal_data
     return None
 

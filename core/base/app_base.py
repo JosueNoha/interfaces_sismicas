@@ -60,6 +60,9 @@ class AppBase(QMainWindow):
         self.ui.b_defX.clicked.connect(lambda: self.load_image('defX'))
         self.ui.b_defY.clicked.connect(lambda: self.load_image('defY'))
         
+        # Validacion de deriva maxima
+        self.ui.le_max_drift.textChanged.connect(self._validate_max_drift)
+        
         # Botones de descripciones
         self.ui.b_descripcion.clicked.connect(lambda: self.open_description_dialog('descripcion'))
         self.ui.b_modelamiento.clicked.connect(lambda: self.open_description_dialog('modelamiento'))
@@ -187,6 +190,29 @@ class AppBase(QMainWindow):
             self.ui.le_ubicacion.setText(defaults['ubicacion'])
         if 'autor' in defaults:
             self.ui.le_autor.setText(defaults['autor'])
+        if hasattr(self.ui, 'le_max_drift'):
+            country = self.config.get('pais', '').lower()
+            if country == 'bolivia':
+                default_drift = 0.01  # CNBDS 2023
+            elif country == 'peru':
+                default_drift = 0.007  # E.030 concreto armado
+            else:
+                default_drift = 0.01  # Valor genérico
+            
+            self.ui.le_max_drift.setText(str(default_drift))
+            self.sismo.max_drift = default_drift
+    
+    def _validate_max_drift(self):
+        """Validar entrada de deriva máxima"""
+        try:
+            value = float(self.ui.le_max_drift.text())
+            if 0.001 <= value <= 0.05:  # Rango válido 0.1% a 5%
+                self.ui.le_max_drift.setStyleSheet("")  # Limpiar error
+                self.sismo.max_drift = value
+            else:
+                self.ui.le_max_drift.setStyleSheet("QLineEdit { border: 2px solid orange; }")
+        except ValueError:
+            self.ui.le_max_drift.setStyleSheet("QLineEdit { border: 2px solid red; }")
 
     def load_image(self, image_type: str):
         """Cargar imagen del tipo especificado"""
@@ -272,6 +298,16 @@ class AppBase(QMainWindow):
         # Combinaciones seleccionadas
         combinations = self.get_selected_combinations()
         self.sismo.loads.selected_combinations = combinations
+        
+        # Actualizar deriva máxima desde UI
+        if hasattr(self.ui, 'le_max_drift'):
+            try:
+                max_drift_value = float(self.ui.le_max_drift.text())
+                self.sismo.max_drift = max_drift_value
+            except ValueError:
+                # Si hay error, usar valor por defecto
+                self.sismo.max_drift = 0.007
+                self.ui.le_max_drift.setText("0.007")
 
     def show_error(self, message: str):
         """Mostrar mensaje de error"""
@@ -336,8 +372,7 @@ class AppBase(QMainWindow):
             }
             
             # Calcular cortantes
-            success_dyn = self.sismo.calculate_shear_forces(self.SapModel, 'dynamic')
-            success_sta = self.sismo.calculate_shear_forces(self.SapModel, 'static')
+            success_dyn, success_sta = self.sismo.calculate_shear_forces(self.SapModel)
             
             if success_dyn and success_sta:
                 # Obtener cortantes basales
@@ -367,8 +402,6 @@ class AppBase(QMainWindow):
                     self._generate_shear_plots()
                     
                     self.show_info("✅ Cortantes, factores y gráficos generados")
-                    
-                    self.show_info("✅ Cortantes y factores calculados")
                 else:
                     self.show_error("Error extrayendo cortantes basales")
             else:
@@ -459,11 +492,44 @@ class AppBase(QMainWindow):
             
             if success:
                 self.show_info("✅ Desplazamientos calculados exitosamente")
+                self._show_displacements_plot()
             else:
                 self.show_error("Error calculando desplazamientos")
                 
         except Exception as e:
             self.show_error(f"Error: {e}")
+            
+    def _show_displacements_plot(self):
+        """Mostrar gráfico de desplazamientos internamente"""
+        if hasattr(self.sismo, 'fig_displacements') and self.sismo.fig_displacements is not None:
+            try:
+                from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+                from PyQt5.QtWidgets import QDialog, QVBoxLayout, QPushButton, QHBoxLayout
+                
+                # Crear diálogo
+                dialog = QDialog(self)
+                dialog.setWindowTitle("Desplazamientos Laterales")
+                dialog.setMinimumSize(800, 600)
+                dialog.setModal(True)
+                
+                layout = QVBoxLayout(dialog)
+                
+                # Canvas
+                canvas = FigureCanvasQTAgg(self.sismo.fig_displacements)
+                layout.addWidget(canvas)
+                
+                # Botón cerrar
+                btn_layout = QHBoxLayout()
+                btn_layout.addStretch()
+                btn_close = QPushButton("Cerrar")
+                btn_close.clicked.connect(dialog.accept)
+                btn_layout.addWidget(btn_close)
+                layout.addLayout(btn_layout)
+                
+                dialog.exec_()
+                
+            except Exception as e:
+                print(f"Error mostrando gráfico: {e}")
 
     def calculate_drifts(self):
         """Calcular derivas"""
@@ -474,7 +540,6 @@ class AppBase(QMainWindow):
             self.update_seismic_loads()
             # Usar combinación de desplazamientos si está seleccionada
             combinations = self.get_selected_combinations()
-            print(combinations)
             
             # Usar combo directo si ambas direcciones están configuradas
             use_combo = bool(combinations['displacement_x'] and combinations['displacement_y'])
@@ -491,11 +556,44 @@ class AppBase(QMainWindow):
             
             if success:
                 self.show_info("✅ Desplazamientos calculados exitosamente")
+                self._show_drifts_plot()
             else:
                 self.show_error("Error calculando desplazamientos")
                 
         except Exception as e:
             self.show_error(f"Error: {e}")
+            
+    def _show_drifts_plot(self):
+        """Mostrar gráfico de desplazamientos internamente"""
+        if hasattr(self.sismo, 'fig_drifts') and self.sismo.fig_drifts is not None:
+            try:
+                from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+                from PyQt5.QtWidgets import QDialog, QVBoxLayout, QPushButton, QHBoxLayout
+                
+                # Crear diálogo
+                dialog = QDialog(self)
+                dialog.setWindowTitle("Desplazamientos Relativos Laterales")
+                dialog.setMinimumSize(800, 600)
+                dialog.setModal(True)
+                
+                layout = QVBoxLayout(dialog)
+                
+                # Canvas
+                canvas = FigureCanvasQTAgg(self.sismo.fig_drifts)
+                layout.addWidget(canvas)
+                
+                # Botón cerrar
+                btn_layout = QHBoxLayout()
+                btn_layout.addStretch()
+                btn_close = QPushButton("Cerrar")
+                btn_close.clicked.connect(dialog.accept)
+                btn_layout.addWidget(btn_close)
+                layout.addLayout(btn_layout)
+                
+                dialog.exec_()
+                
+            except Exception as e:
+                print(f"Error mostrando gráfico: {e}")
 
     def show_modal_data(self):
         """Mostrar datos del análisis modal con validación de masa mínima"""

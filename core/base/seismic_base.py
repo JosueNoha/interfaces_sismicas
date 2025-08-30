@@ -13,6 +13,10 @@ class SeismicBase:
         self.config = config or {}
         self.dynamic_attrs = {}  # ✅ Simple y sin recursión
         
+        # Parámetros de deriva por defecto
+        self.max_drift = 0.007  # Límite por defecto para concreto armado
+        self.is_regular = True  # Regularidad estructural por defecto
+        
         # Propiedades comunes del proyecto
         self.proyecto = "Edificación de Concreto Reforzado"
         self.ubicacion = self.config.get('ubicacion_defecto', "")
@@ -93,7 +97,7 @@ class SeismicBase:
             self.FEx = 0.0
             self.FEy = 0.0
 
-    def calculate_shear_forces(self, SapModel, analysis_type='dynamic'):
+    def calculate_shear_forces(self, SapModel):
         """Calcular fuerzas cortantes desde ETABS"""
         try:
             from core.utils.etabs_utils import set_units, get_story_forces, get_story_data
@@ -101,20 +105,16 @@ class SeismicBase:
             
             # Configurar cargas según tipo
             seism_loads = self.loads.seism_loads
-            if analysis_type == 'dynamic':
-                sx = [seism_loads.get('SDX', '')]
-                sy = [seism_loads.get('SDY', '')]
-            else:  # static
-                sx = [seism_loads.get('SSX', '')]
-                sy = [seism_loads.get('SSY', '')]
+            dynamic_cases = [seism_loads.get('SDX', ''), seism_loads.get('SDY', '')]
+            static_cases = [seism_loads.get('SSX', ''), seism_loads.get('SSY', '')]
             
             # Configurar visualización en ETABS
-            set_loads = [s for s in sx + sy if s]
-            if not set_loads:
-                return False
+            all_cases = [c for c in dynamic_cases + static_cases if c]
+            if not all_cases:
+                return False, False
                 
-            SapModel.DatabaseTables.SetLoadCasesSelectedForDisplay(set_loads)
-            SapModel.DatabaseTables.SetLoadCombinationsSelectedForDisplay(set_loads)
+            SapModel.DatabaseTables.SetLoadCasesSelectedForDisplay(all_cases)
+            SapModel.DatabaseTables.SetLoadCombinationsSelectedForDisplay(all_cases)
             
             # Obtener datos
             set_units(SapModel, 'Ton_m_C')
@@ -122,8 +122,10 @@ class SeismicBase:
             stories = get_story_data(SapModel)
 
             # Procesar tabla
-            table = table.merge(stories[['Story','Height']], on='Story')
-            table['Direction'] = np.where(table['OutputCase'].isin(sx), 'X', 'Y')
+            table = table.merge(stories[['Story','Height']], on='Story',sort=False)
+            table['Direction'] = np.where(
+                table['OutputCase'].isin(dynamic_cases[:1] + static_cases[:1]), 'X', 'Y'
+            )
             table['V'] = np.where(table['Direction']=='X', table['VX'], table['VY'])
             table = table[['Story','Location','OutputCase','Height','V','Direction']]
             
@@ -134,19 +136,24 @@ class SeismicBase:
             
             # Agrupar por ubicación
             table = table.groupby(['Story','OutputCase','Location','Direction'], sort=False, as_index=False)[['Height','V']].max()
+            
+            # Separar dinámicos y estáticos
+            dynamic_table = table[table['OutputCase'].isin(dynamic_cases)].copy()
+            static_table = table[table['OutputCase'].isin(static_cases)].copy()
                 
-            # Almacenar resultado Y crear figura
-            if analysis_type == 'dynamic':
-                self.shear_dynamic = table
-                self.dynamic_shear_fig = self._create_shear_figure(table, sx, sy, 'dynamic')
-            else:
-                self.shear_static = table
-                self.static_shear_fig = self._create_shear_figure(table, sx, sy, 'static')
+            # Almacenar ambos resultados
+            if not dynamic_table.empty:
+                self.shear_dynamic = dynamic_table
+                self.dynamic_shear_fig = self._create_shear_figure(dynamic_table, dynamic_cases[:1], dynamic_cases[1:], 'dynamic')
+            
+            if not static_table.empty:
+                self.shear_static = static_table
+                self.static_shear_fig = self._create_shear_figure(static_table, static_cases[:1], static_cases[1:], 'static')
                 
-            return True
+            return not dynamic_table.empty, not static_table.empty
             
         except Exception as e:
-            print(f"Error calculando cortantes {analysis_type}: {e}")
+            print(f"Error calculando cortantes: {e}")
             return False
 
     def _create_shear_figure(self, table, sx, sy, analysis_type):
@@ -263,17 +270,17 @@ class SeismicBase:
                 ((table['OutputCase'].isin(y_cases)) & (table['Direction']=='Y'))
             ]
             
-            table = table.merge(stories[['Story','Height']], on='Story')
+            table = table.merge(stories[['Story','Height']], on='Story',sort=False)
             table[['Maximum','Height']] = table[['Maximum','Height']].astype(float)
             
             # Agrupar por piso y dirección
             story_order = stories['Story'].unique()
-            table = table.groupby(['Story','Direction'], as_index=False)[['Maximum','Height']].max()
+            table = table.groupby(['Story','Direction'], as_index=False, sort=False)[['Maximum','Height']].max()
             
             # Pivot X e Y
             disp_x = table[table['Direction']=='X']
             disp_y = table[table['Direction']=='Y']
-            table = disp_x.merge(disp_y, on=['Story','Height'], how='outer', suffixes=('_x', '_y'))
+            table = disp_x.merge(disp_y, on=['Story','Height'], how='outer', suffixes=('_x', '_y'),sort=False)
             table[['Maximum_x','Maximum_y']] = table[['Maximum_x','Maximum_y']].fillna(0)
             
             # Ordenar por pisos
@@ -398,12 +405,12 @@ class SeismicBase:
             # Obtener datos
             success, table = get_table(SapModel, 'Diaphragm Max Over Avg Drifts')
             stories = get_story_data(SapModel)
+            story_order = stories['Story'].unique() 
             
             if not success or table is None or stories is None:
                 return False
             # Procesar tabla
             table[['Max Drift']] = table[['Max Drift']].astype(float)
-            table = table[['Story','OutputCase','Direction','Maximum']]
             table = table[
                 ((table['OutputCase'].isin(x_cases)) & table['Item'].str.contains('x',case=False)) |
                 ((table['OutputCase'].isin(y_cases)) & table['Item'].str.contains('y',case=False))
@@ -420,22 +427,25 @@ class SeismicBase:
                 table['Drifts'] = table.apply((lambda row: row['Drifts']*self.Ry if row['OutputCase'].isin(y_cases) else row['Drifts']*self.Rx),axis=1)
                 
             table = table[['Story','OutputCase','Item','Drifts']]
-            table = table.assign(Drift_Check = (table['Drifts'] < self.max_drift_x).apply(lambda x: 'Cumple' if x else 'No Cumple'))
+            table = table.assign(Drift_Check = (table['Drifts'] < self.max_drift).apply(lambda x: 'Cumple' if x else 'No Cumple'))
             
             stories['Height'] = stories['Height'] .astype(float)
             table = table.merge(stories[['Story','Height']], on='Story',sort=False)
             
             # Agrupar por piso y dirección
             table = table.groupby(['Story','Item'], as_index=False, sort=False)[['Drifts','Height']].max()
+
             
             # Pivot X e Y
-            drifts_x = table[table['Direction']=='X']
-            drifts_y = table[table['Direction']=='Y']
-            table = drifts_x.merge(drifts_y, on=['Story','Height'], how='outer', suffixes=('_x', '_y'))
+            drifts_x = table[table['Item'].str.contains(r'^Diaph .* X$')]
+            drifts_y = table[table['Item'].str.contains(r'^Diaph .* Y$')]
+            table = drifts_x.merge(drifts_y, on=['Story','Height'], how='outer', suffixes=('_x', '_y'),sort=False)
             table[['Drifts_x','Drifts_y']] = table[['Drifts_x','Drifts_y']].fillna(0)
             
             # Ordenar por pisos
             table = table[['Story','Height','Drifts_x','Drifts_y']]
+            table = table.sort_values(by='Story', 
+                         key=lambda x: x.map({v: i for i, v in enumerate(story_order)}))
             
             # Aplicar unidades
             table[['Height']] *= u.mm

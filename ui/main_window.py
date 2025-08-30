@@ -302,6 +302,14 @@ class Ui_MainWindow(object):
         displ_layout.addWidget(self.b_desplazamiento, 0, 0)
         displ_layout.addWidget(self.b_derivas, 0, 1)
         
+        # Agregar campo para límite de deriva máxima
+        self.label_max_drift = QtWidgets.QLabel("Deriva Máxima:")
+        self.le_max_drift = QtWidgets.QLineEdit("0.007")
+        self.le_max_drift.setToolTip("Límite máximo de deriva (0.007 para concreto armado)")
+        
+        displ_layout.addWidget(self.label_max_drift, 1, 0)
+        displ_layout.addWidget(self.le_max_drift, 1, 1)
+        
         parent_layout.addWidget(self.group_displacements)
 
     def _setup_memory_tab(self):

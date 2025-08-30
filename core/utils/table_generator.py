@@ -354,15 +354,8 @@ class SeismicTableGenerator:
     # ===== MÉTODOS DE CONFIGURACIÓN =====
     
     def _get_drift_limit(self) -> float:
-        """
-        Obtener límite de deriva (puede ser sobrescrito por normas específicas)
-        
-        Returns:
-            Límite de deriva por defecto (concreto armado)
-        """
-        # Valor por defecto para concreto armado
-        # Las normas específicas pueden sobrescribir este método
-        return 0.007
+        """Obtener límite de deriva desde la instancia sísmica"""
+        return getattr(self.seismic, 'max_drift', 0.007)
     
     def _get_no_data_table(self, table_name: str, columns: list) -> str:
         """

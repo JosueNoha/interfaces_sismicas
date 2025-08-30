@@ -100,7 +100,11 @@ def get_table(SapModel, table_name):
             # Intentar convertir columnas numéricas
             for col in df.columns:
                 if col not in ['Case','OutputCase', 'CaseType', 'StepType', 'Story', 'Pier', 'Spandrel', 'Location']:
-                    df[col] = pd.to_numeric(df[col], errors='coerce')
+                    try:
+                        df[col] = pd.to_numeric(df[col])
+                    except (ValueError, TypeError):
+                        # Si la conversión falla, mantener valores originales
+                        pass
             
             return True, df
         else:

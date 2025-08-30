@@ -140,6 +140,8 @@ def get_unique_cases(SapModel, combo_name):
     unique_cases = []
     try:
         _,case_types,case_names,*_ = SapModel.RespCombo.GetCaseList(combo_name)
+        if not case_types:
+            return [combo_name]
         for case_type,case_name in zip(case_types,case_names):
             if case_type == 0:
                 unique_cases += [case_name]
@@ -236,31 +238,11 @@ def get_load_combinations(SapModel, seismic_only=False):
         return []
 
 
-def filter_seismic_loads(SapModel, selected_loads):
-    """
-    Configurar cargas sísmicas seleccionadas para visualización
-    
-    Args:
-        SapModel: Objeto modelo de ETABS
-        selected_loads (list): Lista de casos/combinaciones a mostrar
-        
-    Returns:
-        bool: True si configuración exitosa
-    """
-    try:
-        SapModel.DatabaseTables.SetLoadCasesSelectedForDisplay(selected_loads)
-        SapModel.DatabaseTables.SetLoadCombinationsSelectedForDisplay(selected_loads)
-        return True
-    except Exception as e:
-        print(f"Error configurando cargas para visualización: {e}")
-        return False
-
-
 # Funciones específicas para obtener datos comunes
 
 def get_story_data(SapModel):
     """Obtener información general de pisos"""
-    success, data = get_table(SapModel, 'Story Data')
+    success, data = get_table(SapModel, 'Story Definitions')
     return data if success else None
 
 
@@ -271,15 +253,6 @@ def get_modal_data(SapModel):
         # Filtrar solo resultados modales
         modal_data = data[data['Case'] == 'Modal'].copy()
         return modal_data
-    return None
-
-
-def get_modal_periods(SapModel):
-    """Obtener períodos modales"""
-    success, data = get_table(SapModel, 'Modal Periods And Frequencies')
-    if success and data is not None:
-        modal_periods = data[data['OutputCase'] == 'MODAL'].copy()
-        return modal_periods
     return None
 
 
@@ -466,16 +439,16 @@ def process_modal_data(modal_data):
     try:
         # Buscar períodos fundamentales
         # Primer modo con participación significativa en X
-        modal_x = modal_data[modal_data['UX'] > 10.0]  # >10% participación
-        Tx = modal_x.iloc[0]['Period'] if not modal_x.empty else None
+        mode_x = modal_data[modal_data.UX == max(modal_data.UX)].index[0]
+        Tx = modal_data['Period'][mode_x] if not modal_data.empty else None
         
         # Primer modo con participación significativa en Y  
-        modal_y = modal_data[modal_data['UY'] > 10.0]  # >10% participación
-        Ty = modal_y.iloc[0]['Period'] if not modal_y.empty else None
+        mode_y = modal_data[modal_data.UY == max(modal_data.UY)].index[0]
+        Ty = modal_data['Period'][mode_y] if not modal_data.empty else None
         
         # Masas participativas totales
-        sum_ux = modal_data['SumUX'].max()
-        sum_uy = modal_data['SumUY'].max()
+        sum_ux = modal_data['SumUX'].max()*100
+        sum_uy = modal_data['SumUY'].max()*100
         
         return {
             'Tx': Tx,

@@ -163,68 +163,131 @@ class Ui_MainWindow(object):
         parent_layout.addWidget(self.group_modal)
 
     def _setup_combinations_section(self, parent_layout):
-        """Configurar sección de selección de combinaciones"""
+        """Configurar sección de selección de combinaciones por dirección"""
         self.group_combinations = QtWidgets.QGroupBox("Selección de Combinaciones de Carga")
         comb_layout = QtWidgets.QGridLayout(self.group_combinations)
         
-        # Combinaciones Dinámicas
-        self.label_comb_dynamic = QtWidgets.QLabel("Combinaciones Dinámicas:")
-        self.cb_comb_dynamic = QtWidgets.QComboBox()
-        self.cb_comb_dynamic.setEditable(True)
-        self.b_refresh_dynamic = QtWidgets.QPushButton("↻")
-        self.b_refresh_dynamic.setMaximumWidth(30)
-        self.b_refresh_dynamic.setToolTip("Actualizar combinaciones dinámicas")
+        # Combinaciones Dinámicas X
+        self.label_comb_dynamic_x = QtWidgets.QLabel("Dinámicas X:")
+        self.cb_comb_dynamic_x = QtWidgets.QComboBox()
+        self.cb_comb_dynamic_x.setEditable(True)
         
-        comb_layout.addWidget(self.label_comb_dynamic, 0, 0)
-        comb_layout.addWidget(self.cb_comb_dynamic, 0, 1)
-        comb_layout.addWidget(self.b_refresh_dynamic, 0, 2)
+        # Combinaciones Dinámicas Y  
+        self.label_comb_dynamic_y = QtWidgets.QLabel("Dinámicas Y:")
+        self.cb_comb_dynamic_y = QtWidgets.QComboBox()
+        self.cb_comb_dynamic_y.setEditable(True)
         
-        # Combinaciones Estáticas
-        self.label_comb_static = QtWidgets.QLabel("Combinaciones Estáticas:")
-        self.cb_comb_static = QtWidgets.QComboBox()
-        self.cb_comb_static.setEditable(True)
-        self.b_refresh_static = QtWidgets.QPushButton("↻")
-        self.b_refresh_static.setMaximumWidth(30)
-        self.b_refresh_static.setToolTip("Actualizar combinaciones estáticas")
+        comb_layout.addWidget(self.label_comb_dynamic_x, 0, 0)
+        comb_layout.addWidget(self.cb_comb_dynamic_x, 0, 1)
+        comb_layout.addWidget(self.label_comb_dynamic_y, 0, 2)
+        comb_layout.addWidget(self.cb_comb_dynamic_y, 0, 3)
         
-        comb_layout.addWidget(self.label_comb_static, 1, 0)
-        comb_layout.addWidget(self.cb_comb_static, 1, 1)
-        comb_layout.addWidget(self.b_refresh_static, 1, 2)
+        # Combinaciones Estáticas X
+        self.label_comb_static_x = QtWidgets.QLabel("Estáticas X:")
+        self.cb_comb_static_x = QtWidgets.QComboBox()
+        self.cb_comb_static_x.setEditable(True)
         
-        # Combinaciones de Desplazamientos
-        self.label_comb_displacement = QtWidgets.QLabel("Combinaciones Desplazamientos:")
-        self.cb_comb_displacement = QtWidgets.QComboBox()
-        self.cb_comb_displacement.setEditable(True)
-        self.b_refresh_displacement = QtWidgets.QPushButton("↻")
-        self.b_refresh_displacement.setMaximumWidth(30)
-        self.b_refresh_displacement.setToolTip("Actualizar combinaciones desplazamientos")
+        # Combinaciones Estáticas Y
+        self.label_comb_static_y = QtWidgets.QLabel("Estáticas Y:")
+        self.cb_comb_static_y = QtWidgets.QComboBox()
+        self.cb_comb_static_y.setEditable(True)
+
+        comb_layout.addWidget(self.label_comb_static_x, 1, 0)
+        comb_layout.addWidget(self.cb_comb_static_x, 1, 1)
+        comb_layout.addWidget(self.label_comb_static_y, 1, 2)
+        comb_layout.addWidget(self.cb_comb_static_y, 1, 3)
         
-        comb_layout.addWidget(self.label_comb_displacement, 2, 0)
-        comb_layout.addWidget(self.cb_comb_displacement, 2, 1)
-        comb_layout.addWidget(self.b_refresh_displacement, 2, 2)
+        # Combinaciones de Desplazamientos X
+        self.label_comb_displacement_x = QtWidgets.QLabel("Desplaz. X:")
+        self.cb_comb_displacement_x = QtWidgets.QComboBox()
+        self.cb_comb_displacement_x.setEditable(True)
+
+        # Combinaciones de Desplazamientos Y
+        self.label_comb_displacement_y = QtWidgets.QLabel("Desplaz. Y:")
+        self.cb_comb_displacement_y = QtWidgets.QComboBox()
+        self.cb_comb_displacement_y.setEditable(True)
+        
+        comb_layout.addWidget(self.label_comb_displacement_x, 2, 0)
+        comb_layout.addWidget(self.cb_comb_displacement_x, 2, 1)
+        comb_layout.addWidget(self.label_comb_displacement_y, 2, 2)
+        comb_layout.addWidget(self.cb_comb_displacement_y, 2, 3) 
+        
+        # Botón refresh
+        self.b_refresh_combinations = QtWidgets.QPushButton("🔄 Actualizar Combinaciones")
+        self.b_refresh_combinations.setToolTip("Obtener combinaciones sísmicas desde ETABS")
+        comb_layout.addWidget(self.b_refresh_combinations, 3, 0, 1, 4)
         
         parent_layout.addWidget(self.group_combinations)
 
     def _setup_shear_section(self, parent_layout):
-        """Configurar sección de fuerzas cortantes"""
+        """Configurar sección de fuerzas cortantes organizadas por dirección"""
         self.group_shear = QtWidgets.QGroupBox("Fuerzas Cortantes")
         shear_layout = QtWidgets.QGridLayout(self.group_shear)
         
+        # Botón calcular
         self.b_cortantes = QtWidgets.QPushButton("Calcular Cortantes")
         shear_layout.addWidget(self.b_cortantes, 0, 0, 1, 4)
         
-        # Campos de cortantes
-        self.label_vestx = QtWidgets.QLabel("Vestx:")
-        self.le_vestx = QtWidgets.QLineEdit()
-        self.le_vestx.setReadOnly(True)
-        self.label_vesty = QtWidgets.QLabel("Vesty:")
-        self.le_vesty = QtWidgets.QLineEdit()
-        self.le_vesty.setReadOnly(True)
+        # Factor de escala - fila independiente
+        self.label_scale_factor = QtWidgets.QLabel("Factor Escala Mín (%):")
+        self.le_scale_factor = QtWidgets.QLineEdit("80.0")
+        shear_layout.addWidget(self.label_scale_factor, 1, 1)
+        shear_layout.addWidget(self.le_scale_factor, 1, 2)
         
-        shear_layout.addWidget(self.label_vestx, 1, 0)
-        shear_layout.addWidget(self.le_vestx, 1, 1)
-        shear_layout.addWidget(self.label_vesty, 1, 2)
-        shear_layout.addWidget(self.le_vesty, 1, 3)
+        # Headers por dirección
+        label_x = QtWidgets.QLabel("Dirección X")
+        label_x.setAlignment(QtCore.Qt.AlignCenter)
+        label_x.setStyleSheet("font-weight: bold;")
+        label_y = QtWidgets.QLabel("Dirección Y")
+        label_y.setAlignment(QtCore.Qt.AlignCenter) 
+        label_y.setStyleSheet("font-weight: bold;")
+        
+        shear_layout.addWidget(label_x, 2, 1)
+        shear_layout.addWidget(label_y, 2, 2)
+        
+        # Columna X - Dinámico, Estático, Factor
+        self.label_vdx = QtWidgets.QLabel("V din:")
+        self.le_vdx = QtWidgets.QLineEdit()
+        self.le_vdx.setReadOnly(True)
+        shear_layout.addWidget(self.label_vdx, 3, 0)
+        shear_layout.addWidget(self.le_vdx, 3, 1)
+        
+        self.label_vsx = QtWidgets.QLabel("V est:")
+        self.le_vsx = QtWidgets.QLineEdit()
+        self.le_vsx.setReadOnly(True)
+        shear_layout.addWidget(self.label_vsx, 4, 0)
+        shear_layout.addWidget(self.le_vsx, 4, 1)
+        
+        self.label_fx = QtWidgets.QLabel("F.E.:")
+        self.le_fx = QtWidgets.QLineEdit()
+        self.le_fx.setReadOnly(True)
+        shear_layout.addWidget(self.label_fx, 5, 0)
+        shear_layout.addWidget(self.le_fx, 5, 1)
+        
+        # Columna Y - Dinámico, Estático, Factor  
+        self.label_vdy = QtWidgets.QLabel("V din:")
+        self.le_vdy = QtWidgets.QLineEdit()
+        self.le_vdy.setReadOnly(True)
+        shear_layout.addWidget(self.label_vdy, 3, 2)
+        shear_layout.addWidget(self.le_vdy, 3, 3)
+        
+        self.label_vsy = QtWidgets.QLabel("V est:")
+        self.le_vsy = QtWidgets.QLineEdit()
+        self.le_vsy.setReadOnly(True)
+        shear_layout.addWidget(self.label_vsy, 4, 2)
+        shear_layout.addWidget(self.le_vsy, 4, 3)
+        
+        self.label_fy = QtWidgets.QLabel("F.E.:")
+        self.le_fy = QtWidgets.QLineEdit()
+        self.le_fy.setReadOnly(True)
+        shear_layout.addWidget(self.label_fy, 5, 2)
+        shear_layout.addWidget(self.le_fy, 5, 3)
+        
+        self.b_view_dynamic = QtWidgets.QPushButton("Ver Gráfico Dinámico")
+        self.b_view_static = QtWidgets.QPushButton("Ver Gráfico Estático")
+
+        shear_layout.addWidget(self.b_view_dynamic, 6, 1)
+        shear_layout.addWidget(self.b_view_static, 6, 2)
         
         parent_layout.addWidget(self.group_shear)
 

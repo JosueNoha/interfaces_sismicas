@@ -83,11 +83,425 @@ class SeismicBase:
             self.Ps = 0.0
             
             # Cortantes basales
-            self.Vsx = 0.0
-            self.Vsy = 0.0
-            self.Vdx = 0.0
-            self.Vdy = 0.0
+            # Cortantes basales por dirección
+            self.Vdx = 0.0  # Dinámico X
+            self.Vdy = 0.0  # Dinámico Y  
+            self.Vsx = 0.0  # Estático X
+            self.Vsy = 0.0  # Estático Y
             
             # Factores de escala
             self.FEx = 0.0
             self.FEy = 0.0
+
+    def calculate_shear_forces(self, SapModel, analysis_type='dynamic'):
+        """Calcular fuerzas cortantes desde ETABS"""
+        try:
+            from core.utils.etabs_utils import set_units, get_story_forces, get_story_data
+            import numpy as np
+            
+            # Configurar cargas según tipo
+            seism_loads = self.loads.seism_loads
+            if analysis_type == 'dynamic':
+                sx = [seism_loads.get('SDX', '')]
+                sy = [seism_loads.get('SDY', '')]
+            else:  # static
+                sx = [seism_loads.get('SSX', '')]
+                sy = [seism_loads.get('SSY', '')]
+            
+            # Configurar visualización en ETABS
+            set_loads = [s for s in sx + sy if s]
+            if not set_loads:
+                return False
+                
+            SapModel.DatabaseTables.SetLoadCasesSelectedForDisplay(set_loads)
+            SapModel.DatabaseTables.SetLoadCombinationsSelectedForDisplay(set_loads)
+            
+            # Obtener datos
+            set_units(SapModel, 'Ton_m_C')
+            table = get_story_forces(SapModel)
+            stories = get_story_data(SapModel)
+
+            # Procesar tabla
+            table = table.merge(stories[['Story','Height']], on='Story')
+            table['Direction'] = np.where(table['OutputCase'].isin(sx), 'X', 'Y')
+            table['V'] = np.where(table['Direction']=='X', table['VX'], table['VY'])
+            table = table[['Story','Location','OutputCase','Height','V','Direction']]
+            
+            
+            # Convertir a float y tomar valor absoluto
+            table[['Height','V']] = table[['Height','V']].astype(float)
+            table['V'] = table['V'].abs()
+            
+            # Agrupar por ubicación
+            table = table.groupby(['Story','OutputCase','Location','Direction'], sort=False, as_index=False)[['Height','V']].max()
+                
+            # Almacenar resultado Y crear figura
+            if analysis_type == 'dynamic':
+                self.shear_dynamic = table
+                self.dynamic_shear_fig = self._create_shear_figure(table, sx, sy, 'dynamic')
+            else:
+                self.shear_static = table
+                self.static_shear_fig = self._create_shear_figure(table, sx, sy, 'static')
+                
+            return True
+            
+        except Exception as e:
+            print(f"Error calculando cortantes {analysis_type}: {e}")
+            return False
+
+    def _create_shear_figure(self, table, sx, sy, analysis_type):
+        """Crear figura de cortantes siguiendo lógica original"""
+        from matplotlib.figure import Figure
+        import numpy as np
+        from core.utils.unit_tool import Units
+        
+        try:
+            u = Units()
+            # Configurar unidades por defecto si no existen
+            u_f = getattr(self, 'u_f', 'tonf')
+            u_h = getattr(self, 'u_h', 'm')
+            
+            # Separar cortantes X e Y
+            shear_x_data = table[table['OutputCase'].isin(sx)]['V'].values
+            shear_y_data = table[table['OutputCase'].isin(sy)]['V'].values
+            
+            # Agregar cero en la base
+            shear_x = np.append([0.], np.abs(shear_x_data))
+            shear_y = np.append([0.], np.abs(shear_y_data))
+            
+            # Obtener alturas (de Top locations)
+            heights_data = table[table['OutputCase'].isin(sx) & (table['Location']=='Top')]['Height'][::-1].cumsum()
+            
+            # Crear array extendido para escalones
+            heights_extended = []
+            for h in heights_data[::-1]:
+                heights_extended.extend([h, h])
+            heights_extended.append(0)
+            heights_extended = np.array(heights_extended)
+            
+            # Crear figura
+            fig = Figure(figsize=(6, 4), dpi=100)
+            ax = fig.add_subplot(111)
+            
+            # Límites del gráfico
+            max_height = max(heights_extended) * 1.05 if len(heights_extended) > 0 else 10
+            max_shear = max(max(shear_x), max(shear_y)) * 1.02
+            
+            ax.set_ylim(0, max_height)
+            ax.set_xlim(0, max_shear)
+            
+            # Plotear líneas
+            ax.plot(shear_x, heights_extended, 'r-', label='$V_x$', linewidth=2)
+            ax.plot(shear_y, heights_extended, 'b-', label='$V_y$', linewidth=2)
+            
+            # Marcadores
+            ax.scatter(shear_x, heights_extended, color='r', marker='x', s=30)
+            ax.scatter(shear_y, heights_extended, color='b', marker='x', s=30)
+            
+            # Labels y formato
+            ax.set_xlabel(f'Fuerza cortante ({u_f})')
+            ax.set_ylabel(f'Altura ({u_h})')
+            ax.grid(True, linestyle='--', alpha=0.7)
+            ax.legend(loc='upper right')
+            
+            title = 'Cortantes Dinámicos' if analysis_type == 'dynamic' else 'Cortantes Estáticos'
+            ax.set_title(title)
+            
+            return fig
+            
+        except Exception as e:
+            print(f"Error creando figura {analysis_type}: {e}")
+            return None
+        
+    def calculate_displacements(self, SapModel, use_displacement_combo=False):
+        """Calcular desplazamientos laterales desde ETABS"""
+        from core.utils.etabs_utils import set_units, get_table, get_story_data, get_unique_cases
+        from core.utils.unit_tool import Units
+        from matplotlib.figure import Figure
+        import numpy as np
+        
+        try:
+            set_units(SapModel, 'Ton_mm_C')
+            u = Units()
+            
+            # Determinar casos de carga
+            if use_displacement_combo:
+                # Usar combinaciones directas
+                x_cases = [self.loads.seism_loads.get('dx', '')]
+                y_cases = [self.loads.seism_loads.get('dy', '')]
+            else:
+                # Usar casos únicos de las combinaciones dinámicas
+                sdx = self.loads.seism_loads.get('SDX', '')
+                sdy = self.loads.seism_loads.get('SDY', '')
+                
+                x_cases = get_unique_cases(SapModel, sdx) if sdx else [sdx]
+                y_cases = get_unique_cases(SapModel, sdy) if sdy else [sdy]
+            
+            # Filtrar casos vacíos
+            x_cases = [c for c in x_cases if c]
+            y_cases = [c for c in y_cases if c]
+            
+            if not x_cases or not y_cases:
+                return False
+            
+            # Configurar visualización
+            all_cases = x_cases + y_cases
+            SapModel.DatabaseTables.SetLoadCasesSelectedForDisplay(all_cases)
+            SapModel.DatabaseTables.SetLoadCombinationsSelectedForDisplay(all_cases)
+            
+            # Obtener datos
+            success, table = get_table(SapModel, 'Story Max Over Avg Displacements')
+            stories = get_story_data(SapModel)
+            
+            if not success or table is None or stories is None:
+                return False
+            
+            # Procesar tabla según lógica original
+            table = table[['Story','OutputCase','Direction','Maximum']]
+            table = table[
+                ((table['OutputCase'].isin(x_cases)) & (table['Direction']=='X')) |
+                ((table['OutputCase'].isin(y_cases)) & (table['Direction']=='Y'))
+            ]
+            
+            table = table.merge(stories[['Story','Height']], on='Story')
+            table[['Maximum','Height']] = table[['Maximum','Height']].astype(float)
+            
+            # Agrupar por piso y dirección
+            story_order = stories['Story'].unique()
+            table = table.groupby(['Story','Direction'], as_index=False)[['Maximum','Height']].max()
+            
+            # Pivot X e Y
+            disp_x = table[table['Direction']=='X']
+            disp_y = table[table['Direction']=='Y']
+            table = disp_x.merge(disp_y, on=['Story','Height'], how='outer', suffixes=('_x', '_y'))
+            table[['Maximum_x','Maximum_y']] = table[['Maximum_x','Maximum_y']].fillna(0)
+            
+            # Ordenar por pisos
+            table = table.sort_values(by='Story', 
+                                    key=lambda x: x.map({v: i for i, v in enumerate(story_order)}))
+            table = table[['Story','Height','Maximum_x','Maximum_y']]
+            
+            # Aplicar unidades
+            table[['Height','Maximum_x','Maximum_y']] *= u.mm
+            self.tables.displacements = table
+            
+            # Preparar arrays para gráfico
+            disp_x_raw = np.array(table['Maximum_x'])[::-1]
+            disp_x_raw = np.append([0.], disp_x_raw)
+            
+            disp_y_raw = np.array(table['Maximum_y'])[::-1] 
+            disp_y_raw = np.append([0.], disp_y_raw)
+            
+            heights = np.array(table['Height'])[::-1].cumsum()
+            heights = np.append([0.], heights)
+            
+            # Aplicar factores de amplificación si no es combo directo
+            if not use_displacement_combo:
+                is_regular = getattr(self, 'is_regular', True)
+                Rx = getattr(self, 'Rx', 8.0)
+                Ry = getattr(self, 'Ry', 8.0)
+                
+                factor = 0.75 if is_regular else 0.85
+                disp_x_raw *= factor * Rx
+                disp_y_raw *= factor * Ry
+            
+            # Almacenar para otras funciones
+            self.disp_x = disp_x_raw
+            self.disp_y = disp_y_raw  
+            self.disp_h = heights
+            
+            # Crear gráfico
+            self.fig_displacements = self._create_displacement_figure(
+                disp_x_raw, disp_y_raw, heights, use_displacement_combo
+            )
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error calculando desplazamientos: {e}")
+            return False
+
+    def _create_displacement_figure(self, disp_x, disp_y, heights, use_combo):
+        """Crear figura de desplazamientos"""
+        from matplotlib.figure import Figure
+        
+        u_d = getattr(self, 'u_d', 'mm')
+        u_h = getattr(self, 'u_h', 'm')
+        
+        # Convertir a unidades de display
+        unit_dict = {'mm': 1.0, 'cm': 0.1, 'm': 0.001}
+        disp_x_plot = disp_x / unit_dict.get(u_d, 1.0)
+        disp_y_plot = disp_y / unit_dict.get(u_d, 1.0)
+        heights_plot = heights / unit_dict.get(u_h, 1000.0)
+        
+        fig = Figure(figsize=(6,4), dpi=100)
+        ax = fig.add_subplot(111)
+        
+        ax.set_ylim(0, max(heights_plot)*1.05)
+        ax.set_xlim(0, max(max(disp_x_plot), max(disp_y_plot))*1.1)
+        
+        if not use_combo:
+            Rx = getattr(self, 'Rx', 8.0)
+            Ry = getattr(self, 'Ry', 8.0)
+            ax.plot(disp_x_plot, heights_plot, 'r', label=f'X (R={Rx:.2f})')
+            ax.plot(disp_y_plot, heights_plot, 'b', label=f'Y (R={Ry:.2f})')
+        else:
+            ax.plot(disp_x_plot, heights_plot, 'r', label='Desplazamientos en X')
+            ax.plot(disp_y_plot, heights_plot, 'b', label='Desplazamientos en Y')
+        
+        ax.scatter(disp_x_plot, heights_plot, color='r', marker='x')
+        ax.scatter(disp_y_plot, heights_plot, color='b', marker='x')
+        
+        ax.set_xlabel(f'Desplazamientos ({u_d})')
+        ax.set_ylabel(f'h ({u_h})')
+        ax.grid(linestyle='dotted', linewidth=1)
+        ax.legend()
+        
+        return fig
+    
+    def calculate_drifts(self, SapModel, use_displacement_combo=False):
+        """Calcular desplazamientos laterales desde ETABS"""
+        from core.utils.etabs_utils import set_units, get_table, get_story_data, get_unique_cases
+        from core.utils.unit_tool import Units
+        from matplotlib.figure import Figure
+        import numpy as np
+        
+        try:
+            set_units(SapModel, 'Ton_mm_C')
+            u = Units()
+            
+            # Determinar casos de carga
+            if use_displacement_combo:
+                # Usar combinaciones directas
+                x_cases = [self.loads.seism_loads.get('dx', '')]
+                y_cases = [self.loads.seism_loads.get('dy', '')]
+            else:
+                # Usar casos únicos de las combinaciones dinámicas
+                sdx = self.loads.seism_loads.get('SDX', '')
+                sdy = self.loads.seism_loads.get('SDY', '')
+                
+                x_cases = get_unique_cases(SapModel, sdx) if sdx else [sdx]
+                y_cases = get_unique_cases(SapModel, sdy) if sdy else [sdy]
+            
+            # Filtrar casos vacíos
+            x_cases = [c for c in x_cases if c]
+            y_cases = [c for c in y_cases if c]
+            
+            if not x_cases or not y_cases:
+                return False
+            
+            # Configurar visualización
+            all_cases = x_cases + y_cases
+            SapModel.DatabaseTables.SetLoadCasesSelectedForDisplay(all_cases)
+            SapModel.DatabaseTables.SetLoadCombinationsSelectedForDisplay(all_cases)
+            
+            # Obtener datos
+            success, table = get_table(SapModel, 'Diaphragm Max Over Avg Drifts')
+            stories = get_story_data(SapModel)
+            
+            if not success or table is None or stories is None:
+                return False
+            # Procesar tabla
+            table[['Max Drift']] = table[['Max Drift']].astype(float)
+            table = table[['Story','OutputCase','Direction','Maximum']]
+            table = table[
+                ((table['OutputCase'].isin(x_cases)) & table['Item'].str.contains('x',case=False)) |
+                ((table['OutputCase'].isin(y_cases)) & table['Item'].str.contains('y',case=False))
+            ]
+            
+            if use_displacement_combo:
+                table['OutputCase'] = table['OutputCase']+table['StepType']
+                table['Drifts'] = table['Max Drift']
+            else:
+                if self.is_regular:
+                    table['Drifts'] = table['Max Drift']*0.75
+                else:
+                    table['Drifts'] = table['Max Drift']*0.85
+                table['Drifts'] = table.apply((lambda row: row['Drifts']*self.Ry if row['OutputCase'].isin(y_cases) else row['Drifts']*self.Rx),axis=1)
+                
+            table = table[['Story','OutputCase','Item','Drifts']]
+            table = table.assign(Drift_Check = (table['Drifts'] < self.max_drift_x).apply(lambda x: 'Cumple' if x else 'No Cumple'))
+            
+            stories['Height'] = stories['Height'] .astype(float)
+            table = table.merge(stories[['Story','Height']], on='Story',sort=False)
+            
+            # Agrupar por piso y dirección
+            table = table.groupby(['Story','Item'], as_index=False, sort=False)[['Drifts','Height']].max()
+            
+            # Pivot X e Y
+            drifts_x = table[table['Direction']=='X']
+            drifts_y = table[table['Direction']=='Y']
+            table = drifts_x.merge(drifts_y, on=['Story','Height'], how='outer', suffixes=('_x', '_y'))
+            table[['Drifts_x','Drifts_y']] = table[['Drifts_x','Drifts_y']].fillna(0)
+            
+            # Ordenar por pisos
+            table = table[['Story','Height','Drifts_x','Drifts_y']]
+            
+            # Aplicar unidades
+            table[['Height']] *= u.mm
+            self.tables.drifts = table
+            
+            # Preparar arrays para gráfico
+            drift_x_raw = np.array(table['Drifts_x'])[::-1]
+            drift_x_raw = np.append([0.], drift_x_raw)
+            
+            drift_y_raw = np.array(table['Drifts_y'])[::-1] 
+            drift_y_raw = np.append([0.], drift_y_raw)
+            
+            heights = np.array(table['Height'])[::-1].cumsum()
+            heights = np.append([0.], heights)
+            
+            
+            # Almacenar para otras funciones
+            self.drift_x = drift_x_raw
+            self.drift_y = drift_y_raw  
+            self.drift_h = heights
+            
+            # Crear gráfico
+            self.fig_drifts = self._create_drift_figure(
+                drift_x_raw, drift_y_raw, heights, use_displacement_combo
+            )
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error calculando desplazamientos: {e}")
+            return False
+        
+    def _create_drift_figure(self, drift_x, drift_y, heights, use_combo):
+        """Crear figura de desplazamientos"""
+        from matplotlib.figure import Figure
+        
+        u_d = getattr(self, 'u_d', 'mm')
+        u_h = getattr(self, 'u_h', 'm')
+        
+        # Convertir a unidades de display
+        unit_dict = {'mm': 1.0, 'cm': 0.1, 'm': 0.001}
+        disp_x_plot = drift_x / unit_dict.get(u_d, 1.0)
+        disp_y_plot = drift_y / unit_dict.get(u_d, 1.0)
+        heights_plot = heights / unit_dict.get(u_h, 1000.0)
+        
+        fig = Figure(figsize=(6,4), dpi=100)
+        ax = fig.add_subplot(111)
+        
+        ax.set_ylim(0, max(heights_plot)*1.05)
+        ax.set_xlim(0, max(max(disp_x_plot), max(disp_y_plot))*1.1)
+        
+        if not use_combo:
+            Rx = getattr(self, 'Rx', 8.0)
+            Ry = getattr(self, 'Ry', 8.0)
+            ax.plot(disp_x_plot, heights_plot, 'r', label=f'X (R={Rx:.2f})')
+            ax.plot(disp_y_plot, heights_plot, 'b', label=f'Y (R={Ry:.2f})')
+        else:
+            ax.plot(disp_x_plot, heights_plot, 'r', label='Desplazamientos en X')
+            ax.plot(disp_y_plot, heights_plot, 'b', label='Desplazamientos en Y')
+        
+        ax.scatter(disp_x_plot, heights_plot, color='r', marker='x')
+        ax.scatter(disp_y_plot, heights_plot, color='b', marker='x')
+        
+        ax.set_xlabel(f'Desplazamientos ({u_d})')
+        ax.set_ylabel(f'h ({u_h})')
+        ax.grid(linestyle='dotted', linewidth=1)
+        ax.legend()
+        
+        return fig

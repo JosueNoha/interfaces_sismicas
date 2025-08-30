@@ -124,37 +124,104 @@ class SeismicTableGenerator:
     
     def generate_shear_table_dynamic(self) -> str:
         """Generar tabla de cortantes dinámicos"""
-        return self._generate_shear_table('Dinámicos')
-    
-    def generate_shear_table_static(self) -> str:
-        """Generar tabla de cortantes estáticos"""
-        return self._generate_shear_table('Estáticos')
-    
-    def _generate_shear_table(self, analysis_type: str) -> str:
-        """Generar tabla de cortantes por tipo de análisis"""
-        if not self._has_shear_data():
-            return self._get_no_data_table(f"Cortantes {analysis_type}", 
+        if not hasattr(self.seismic, 'shear_dynamic') or self.seismic.shear_dynamic is None:
+            return self._get_no_data_table("Cortantes Dinámicos", 
                 ["Piso", "Cortante X", "Cortante Y"])
         
-        # Usar datos genéricos de cortantes (a expandir con datos reales)
-        table_content = f"""\\begin{{table}}[H]
-\\centering
-\\caption{{Cortantes {analysis_type}}}
-\\label{{tab:shear_{analysis_type.lower()}}}
-\\footnotesize
-\\begin{{tabular}}{{|c|c|c|}}
-\\hline
-\\textbf{{Piso}} & \\textbf{{Cortante X}} & \\textbf{{Cortante Y}} \\\\
-\\hline
-"""
+        data = self._process_shear_for_table(self.seismic.shear_dynamic)
         
-        # Datos de ejemplo (se reemplazará con datos reales de ETABS)
-        for i in range(1, 6):  # Ejemplo con 5 pisos
-            table_content += f"Piso {i} & - & - \\\\\n\\hline\n"
+        table_content = f"""\\begin{{table}}[H]
+    \\centering
+    \\caption{{Cortantes Dinámicos por Piso}}
+    \\label{{tab:shear_dynamic}}
+    \\footnotesize
+    \\begin{{tabular}}{{|c|c|c|}}
+    \\hline
+    \\textbf{{Piso}} & \\textbf{{Cortante X (tonf)}} & \\textbf{{Cortante Y (tonf)}} \\\\
+    \\hline
+    """
+        
+        for _, row in data.iterrows():
+            story = row['Story']
+            vx = row.get('V_x', row.get('VX', 0.0))
+            vy = row.get('V_y', row.get('VY', 0.0))
+            table_content += f"{story} & {vx:.3f} & {vy:.3f} \\\\\n\\hline\n"
         
         table_content += "\\end{tabular}\n\\end{table}"
         return table_content
     
+    def generate_shear_table_static(self) -> str:
+        """Generar tabla de cortantes estáticos"""
+        if not hasattr(self.seismic, 'shear_static') or self.seismic.shear_static is None:
+            return self._get_no_data_table("Cortantes Estáticos", 
+                ["Piso", "Cortante X", "Cortante Y"])
+        
+        data = self._process_shear_for_table(self.seismic.shear_static)
+        
+        table_content = f"""\\begin{{table}}[H]
+    \\centering
+    \\caption{{Cortantes Estáticos por Piso}}
+    \\label{{tab:shear_static}}
+    \\footnotesize
+    \\begin{{tabular}}{{|c|c|c|}}
+    \\hline
+    \\textbf{{Piso}} & \\textbf{{Cortante X (tonf)}} & \\textbf{{Cortante Y (tonf)}} \\\\
+    \\hline
+    """
+        
+        for _, row in data.iterrows():
+            story = row['Story']
+            vx = row.get('V_x', row.get('VX', 0.0))
+            vy = row.get('V_y', row.get('VY', 0.0))
+            table_content += f"{story} & {vx:.3f} & {vy:.3f} \\\\\n\\hline\n"
+        
+        table_content += "\\end{tabular}\n\\end{table}"
+        return table_content
+
+    
+    def _process_shear_for_table(self, shear_data):
+        """Procesar datos de cortante para formato de tabla según lógica original"""
+        import re
+        
+        # Filtrar solo ubicación Bottom para cortantes por piso
+        bottom_data = shear_data[shear_data['Location'] == 'Bottom'].copy()
+        bottom_data = bottom_data[['Story', 'OutputCase', 'V']]
+        
+        # Obtener casos de carga X e Y
+        seism_loads = getattr(self.seismic.loads, 'seism_loads', {})
+        
+        # Determinar si es dinámico o estático basado en los casos
+        cases_x = [seism_loads.get('SDX', '')] # suponer caso dinámico
+        if cases_x[0] in str(bottom_data['OutputCase'].values):
+            cases_y = [seism_loads.get('SDY', '')]
+        else:
+            cases_x = [seism_loads.get('SSX', '')]  
+            cases_y = [seism_loads.get('SSY', '')]
+        
+        # Filtrar casos vacíos
+        cases_x = [c for c in cases_x if c]
+        cases_y = [c for c in cases_y if c]
+        
+        if not cases_x or not cases_y:
+            return bottom_data  # Retornar datos sin procesar si no hay casos
+        
+        # Crear regex para filtrar casos X e Y
+        regex_x = '^(' + '|'.join(re.escape(c) for c in cases_x) + ')'
+        regex_y = '^(' + '|'.join(re.escape(c) for c in cases_y) + ')'
+        
+        # Separar datos X e Y y combinar (lógica de tu código original)
+        data_x = bottom_data[bottom_data['OutputCase'].str.match(regex_x)]
+        data_y = bottom_data[bottom_data['OutputCase'].str.match(regex_y)]
+        
+        # Merge para tener X e Y en la misma fila por Story
+        combined_data = data_x.merge(data_y, on='Story', suffixes=('_x', '_y'))
+        
+        # Renombrar columnas para consistencia
+        if 'V_x' in combined_data.columns and 'V_y' in combined_data.columns:
+            combined_data = combined_data[['Story', 'V_x', 'V_y']]
+        
+        return combined_data
+        
     def generate_stiffness_table_x(self) -> str:
         """Generar tabla de irregularidad de rigidez dirección X"""
         return self._generate_stiffness_table('X')
@@ -327,6 +394,8 @@ class SeismicTableGenerator:
 \\end{{table}}"""
         
         return table_content
+    
+
 
 
 # ===== CLASES ESPECIALIZADAS PARA NORMAS ESPECÍFICAS =====

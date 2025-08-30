@@ -43,6 +43,16 @@ class AppBase(QMainWindow):
 
     def _connect_common_signals(self):
         """Conectar señales comunes"""
+        # Botones de análisis sísmico
+        self.ui.b_modal.clicked.connect(self.show_modal_table)
+        self.ui.b_cortantes.clicked.connect(self.calculate_shear_forces)
+        self.ui.b_desplazamiento.clicked.connect(self.calculate_displacements)
+        self.ui.b_derivas.clicked.connect(self.calculate_drifts)
+        self.ui.b_actualizar.clicked.connect(self.update_all_data)
+        # Gráfico de cortantes
+        self.ui.b_view_dynamic.clicked.connect(lambda: self._show_plot('dynamic'))
+        self.ui.b_view_static.clicked.connect(lambda: self._show_plot('static'))
+        
         # Botones de imágenes
         self.ui.b_portada.clicked.connect(lambda: self.load_image('portada'))
         self.ui.b_planta.clicked.connect(lambda: self.load_image('planta'))
@@ -72,29 +82,36 @@ class AppBase(QMainWindow):
 
     def _connect_combination_signals(self):
         """Conectar señales relacionadas con combinaciones"""
-        from core.utils.etabs_utils import update_seismic_combinations
-        self.ui.b_refresh_dynamic.clicked.connect(lambda _: update_seismic_combinations([self.ui.cb_comb_dynamic],self.SapModel))
-        self.ui.b_refresh_static.clicked.connect(lambda _: update_seismic_combinations([self.ui.cb_comb_static],self.SapModel))
-        self.ui.b_refresh_displacement.clicked.connect(lambda _: update_seismic_combinations([self.ui.cb_comb_displacement],self.SapModel))
+        if hasattr(self.ui, 'b_refresh_combinations'):
+            self.ui.b_refresh_combinations.clicked.connect(self.refresh_all_combinations)
 
     def _setup_combinations(self):
-        """Configurar ComboBoxes de combinaciones con valores por defecto"""
-        # Obtener casos por defecto del país
+        """Configurar ComboBoxes por dirección con valores por defecto"""
         load_cases = self.config.get('load_cases', {})
         
-        # Configurar combinaciones dinámicas por defecto
-        dynamic_cases = load_cases.get('dinamico_x', []) + load_cases.get('dinamico_y', [])
-        for case in set(dynamic_cases):  # Usar set para eliminar duplicados
-            self.ui.cb_comb_dynamic.addItem(case)
+        # Configurar dinámicas X/Y
+        dynamic_x_cases = load_cases.get('dinamico_x', [])
+        dynamic_y_cases = load_cases.get('dinamico_y', [])
         
-        # Configurar combinaciones estáticas por defecto
-        static_cases = load_cases.get('estatico_x', []) + load_cases.get('estatico_y', [])
-        for case in set(static_cases):
-            self.ui.cb_comb_static.addItem(case)
+        for case in dynamic_x_cases:
+            self.ui.cb_comb_dynamic_x.addItem(case)
+        for case in dynamic_y_cases:
+            self.ui.cb_comb_dynamic_y.addItem(case)
         
-        # Configurar combinaciones de desplazamiento (usar dinámicas por defecto)
-        for case in set(dynamic_cases):
-            self.ui.cb_comb_displacement.addItem(case)
+        # Configurar estáticas X/Y
+        static_x_cases = load_cases.get('estatico_x', [])
+        static_y_cases = load_cases.get('estatico_y', [])
+        
+        for case in static_x_cases:
+            self.ui.cb_comb_static_x.addItem(case)
+        for case in static_y_cases:
+            self.ui.cb_comb_static_y.addItem(case)
+            
+        # Configurar desplazamientos
+        for case in dynamic_x_cases:
+            self.ui.cb_comb_displacement_x.addItem(case)
+        for case in dynamic_y_cases:
+            self.ui.cb_comb_displacement_y.addItem(case)
 
     def _refresh_dynamic_combinations(self):
         """Actualizar combinaciones dinámicas desde ETABS"""
@@ -111,81 +128,41 @@ class AppBase(QMainWindow):
         else:
             self.show_error("Error actualizando combinaciones dinámicas desde ETABS")
 
-    # def _refresh_static_combinations(self):
-    #     """Actualizar combinaciones estáticas desde ETABS"""
-    #     if not self._connect_etabs():
-    #         return
-        
-    #     try:
-    #         # Obtener todas las combinaciones
-    #         _, load_combos, _ = self.SapModel.RespCombo.GetNameList()
-    #         load_combos = [combo for combo in load_combos if combo[0] != '~' and 'Modal' not in combo]
-            
-    #         # Obtener casos sísmicos para filtrar
-    #         _, load_cases, _ = self.SapModel.LoadCases.GetNameList()
-    #         seism_cases = [case for case in load_cases if 
-    #                       case[0] != '~' and 'Modal' not in case and
-    #                       self.SapModel.LoadCases.GetTypeOAPI_1(case)[2] == 5]
-            
-    #         # Filtrar combinaciones no sísmicas (estáticas)
-    #         static_combos = []
-    #         for combo in load_combos:
-    #             try:
-    #                 unique_cases = set(get_unique_cases(self.SapModel, combo))
-    #                 # Si no intersecta con casos sísmicos, es estática
-    #                 if not unique_cases.intersection(set(seism_cases)):
-    #                     static_combos.append(combo)
-    #             except:
-    #                 continue
-            
-    #         # Actualizar ComboBox
-    #         current_selection = self.ui.cb_comb_static.currentText()
-    #         self.ui.cb_comb_static.clear()
-    #         self.ui.cb_comb_static.addItems(static_combos)
-            
-    #         # Restaurar selección si existe
-    #         if current_selection in static_combos:
-    #             self.ui.cb_comb_static.setCurrentText(current_selection)
-            
-    #         self.show_info(f"Combinaciones estáticas actualizadas: {len(static_combos)} elementos")
-            
-    #     except Exception as e:
-    #         self.show_error(f"Error actualizando combinaciones estáticas: {e}")
-
-    # def _refresh_displacement_combinations(self):
-    #     """Actualizar combinaciones de desplazamiento desde ETABS"""
-    #     if not self._connect_etabs():
-    #         return
-        
-    #     from core.utils.etabs_utils import update_seismic_combinations
-        
-    #     success = update_seismic_combinations([self.ui.cb_comb_displacement], self.SapModel)
-        
-    #     if success:
-    #         count = self.ui.cb_comb_displacement.count()
-    #         self.show_info(f"Combinaciones de desplazamiento actualizadas: {count} elementos")
-    #     else:
-    #         self.show_error("Error actualizando combinaciones de desplazamiento")
-
     def refresh_all_combinations(self):
-        """Actualizar todas las combinaciones de una vez"""
+        """Actualizar todas las combinaciones por dirección"""
         if not self._connect_etabs():
             return
         
-        from core.utils.etabs_utils import update_seismic_combinations
-        
         try:
-            # Actualizar dinámicas y desplazamientos (usan la misma lógica)
-            seismic_combos = [self.ui.cb_comb_dynamic, self.ui.cb_comb_static, self.ui.cb_comb_displacement]
-            success_seismic = update_seismic_combinations(seismic_combos, self.SapModel)
+            combo_widgets = [
+                self.ui.cb_comb_dynamic_x, self.ui.cb_comb_dynamic_y,
+                self.ui.cb_comb_static_x, self.ui.cb_comb_static_y,
+                self.ui.cb_comb_displacement_x, self.ui.cb_comb_displacement_y
+            ]
             
-            if success_seismic:
-                self.show_info("✅ Todas las combinaciones actualizadas desde ETABS")
+            from core.utils.etabs_utils import update_seismic_combinations
+            success = update_seismic_combinations(combo_widgets, self.SapModel)
+            
+            if success:
+                self.show_info("✅ Combinaciones actualizadas por dirección")
             else:
-                self.show_warning("⚠️ Actualización parcial - revise la conexión con ETABS")
+                self.show_warning("⚠️ Actualización parcial")
                 
         except Exception as e:
-            self.show_error(f"Error actualizando combinaciones: {e}")
+            self.show_error(f"Error: {e}")
+
+    def update_seismic_loads(self):
+        """Configurar todas las cargas sísmicas centralizadamente"""
+        combinations = self.get_selected_combinations()
+        
+        self.sismo.loads.seism_loads = {
+            'SDX': combinations.get('dynamic_x', ''),
+            'SDY': combinations.get('dynamic_y', ''),
+            'SSX': combinations.get('static_x', ''),
+            'SSY': combinations.get('static_y', ''),
+            'dx': combinations.get('displacement_x', ''),
+            'dy': combinations.get('displacement_y', '')
+        }
 
     def _connect_etabs(self) -> bool:
         """Conectar con ETABS si no está conectado"""
@@ -277,9 +254,12 @@ class AppBase(QMainWindow):
     def get_selected_combinations(self):
         """Obtener combinaciones seleccionadas"""
         return {
-            'dynamic': self.ui.cb_comb_dynamic.currentText(),
-            'static': self.ui.cb_comb_static.currentText(),
-            'displacement': self.ui.cb_comb_displacement.currentText()
+            'dynamic_x': self.ui.cb_comb_dynamic_x.currentText(),
+            'dynamic_y': self.ui.cb_comb_dynamic_y.currentText(),
+            'static_x': self.ui.cb_comb_static_x.currentText(),
+            'static_y': self.ui.cb_comb_static_y.currentText(),
+            'displacement_x': self.ui.cb_comb_displacement_x.currentText(),
+            'displacement_y': self.ui.cb_comb_displacement_y.currentText()
         }
 
     def update_sismo_data(self):
@@ -305,6 +285,19 @@ class AppBase(QMainWindow):
         """Mostrar mensaje de advertencia"""
         QMessageBox.warning(self, "Advertencia", message)
 
+    def _show_plot(self, plot_type):
+        """Mostrar gráfico en ventana emergente"""
+        fig = getattr(self.sismo, f'{plot_type}_shear_fig', None)
+        if fig:
+            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+            from PyQt5.QtWidgets import QDialog, QVBoxLayout
+            
+            dialog = QDialog(self)
+            layout = QVBoxLayout(dialog)
+            canvas = FigureCanvasQTAgg(fig)
+            layout.addWidget(canvas)
+            dialog.exec_()
+
     def get_output_directory(self) -> str:
         """Seleccionar directorio de salida para reportes"""
         directory = QFileDialog.getExistingDirectory(
@@ -318,15 +311,269 @@ class AppBase(QMainWindow):
     def generate_report(self):
         """Generar reporte - implementar en clases derivadas"""
         self.show_warning("Función de reporte no implementada para esta aplicación")
-
+            
     def calculate_shear_forces(self):
-        """Calcular fuerzas cortantes - implementar en clases derivadas"""
-        pass
+        """Calcular cortantes y factores de escala"""
+        if not self._connect_etabs():
+            return
+        
+        try:
+            self.update_seismic_loads()
+            combinations = self.get_selected_combinations()
+            required = ['dynamic_x', 'dynamic_y', 'static_x', 'static_y']
+            missing = [k for k in required if not combinations[k].strip()]
+            
+            if missing:
+                self.show_warning(f"Faltan combinaciones: {', '.join(missing)}")
+                return
+            
+            # Configurar cargas sísmicas
+            self.sismo.loads.seism_loads = {
+                'SDX': combinations['dynamic_x'],
+                'SDY': combinations['dynamic_y'], 
+                'SSX': combinations['static_x'],
+                'SSY': combinations['static_y']
+            }
+            
+            # Calcular cortantes
+            success_dyn = self.sismo.calculate_shear_forces(self.SapModel, 'dynamic')
+            success_sta = self.sismo.calculate_shear_forces(self.SapModel, 'static')
+            
+            if success_dyn and success_sta:
+                # Obtener cortantes basales
+                base_values = self._extract_base_shears()
+                
+                if base_values:
+                    # Actualizar UI
+                    self.ui.le_vdx.setText(f"{base_values['vdx']:.2f}")
+                    self.ui.le_vdy.setText(f"{base_values['vdy']:.2f}")
+                    self.ui.le_vsx.setText(f"{base_values['vsx']:.2f}")
+                    self.ui.le_vsy.setText(f"{base_values['vsy']:.2f}")
+                    
+                    # Calcular factores de escala
+                    scale_factors = self._calculate_scale_factors(base_values)
+                    self.ui.le_fx.setText(f"{scale_factors['fx']:.3f}")
+                    self.ui.le_fy.setText(f"{scale_factors['fy']:.3f}")
+                    
+                    # Almacenar en modelo
+                    self.sismo.data.Vdx = base_values['vdx']
+                    self.sismo.data.Vdy = base_values['vdy']
+                    self.sismo.data.Vsx = base_values['vsx']
+                    self.sismo.data.Vsy = base_values['vsy']
+                    self.sismo.data.FEx = scale_factors['fx']
+                    self.sismo.data.FEy = scale_factors['fy']
+
+                    # Crear gráficos
+                    self._generate_shear_plots()
+                    
+                    self.show_info("✅ Cortantes, factores y gráficos generados")
+                    
+                    self.show_info("✅ Cortantes y factores calculados")
+                else:
+                    self.show_error("Error extrayendo cortantes basales")
+            else:
+                self.show_error("Error calculando cortantes")
+                
+        except Exception as e:
+            self.show_error(f"Error: {e}")
+            
+    def _extract_base_shears(self):
+        """Extraer cortantes basales de los datos calculados"""
+        try:
+            # Obtener primer piso (base) de cada análisis
+            dyn_base = self.sismo.shear_dynamic[
+                self.sismo.shear_dynamic['Location'] == 'Bottom'
+            ].copy()
+            sta_base = self.sismo.shear_static[
+                self.sismo.shear_static['Location'] == 'Bottom'  
+            ].copy()
+            
+            # Extraer valores por dirección
+            vdx = dyn_base[dyn_base['Direction'] == 'X']['V'].iloc[0] if len(dyn_base[dyn_base['Direction'] == 'X']) > 0 else 0
+            vdy = dyn_base[dyn_base['Direction'] == 'Y']['V'].iloc[0] if len(dyn_base[dyn_base['Direction'] == 'Y']) > 0 else 0
+            vsx = sta_base[sta_base['Direction'] == 'X']['V'].iloc[0] if len(sta_base[sta_base['Direction'] == 'X']) > 0 else 0
+            vsy = sta_base[sta_base['Direction'] == 'Y']['V'].iloc[0] if len(sta_base[sta_base['Direction'] == 'Y']) > 0 else 0
+            
+            return {'vdx': vdx, 'vdy': vdy, 'vsx': vsx, 'vsy': vsy}
+        except:
+            return None
+
+    def _calculate_scale_factors(self, base_values):
+        """Calcular factores de escala basados en porcentaje mínimo"""
+        try:
+            min_percent = float(self.ui.le_scale_factor.text()) / 100.0
+            
+            # Calcular factores (dinámico debe ser >= min_percent * estático)
+            fx = max(1.0, (min_percent * base_values['vsx']) / base_values['vdx']) if base_values['vdx'] > 0 else 1.0
+            fy = max(1.0, (min_percent * base_values['vsy']) / base_values['vdy']) if base_values['vdy'] > 0 else 1.0
+            
+            return {'fx': fx, 'fy': fy}
+        except:
+            return {'fx': 1.0, 'fy': 1.0}
+        
+    def _generate_shear_plots(self):
+        """Generar gráficos de cortantes"""
+        try:
+            if hasattr(self.sismo, 'dynamic_shear_fig'):
+                # Mostrar o guardar gráfico dinámico
+                self._save_shear_plot(self.sismo.dynamic_shear_fig, 'cortante_dinamico.png')
+            
+            if hasattr(self.sismo, 'static_shear_fig'):
+                # Mostrar o guardar gráfico estático  
+                self._save_shear_plot(self.sismo.static_shear_fig, 'cortante_estatico.png')
+                
+        except Exception as e:
+            print(f"Error generando gráficos: {e}")
+
+    def _save_shear_plot(self, fig, filename):
+        """Guardar gráfico en directorio temporal para preview"""
+        import tempfile
+        import os
+        
+        temp_dir = tempfile.gettempdir()
+        filepath = os.path.join(temp_dir, filename)
+        fig.savefig(filepath, dpi=150, bbox_inches='tight')
 
     def calculate_displacements(self):
-        """Calcular desplazamientos - implementar en clases derivadas"""
-        pass
+        """Calcular desplazamientos laterales"""
+        if not self._connect_etabs():
+            return
+            
+        try:
+            # Usar combinación de desplazamientos si está seleccionada
+            self.update_seismic_loads()
+            combinations = self.get_selected_combinations()
+            
+            # Usar combo directo si ambas direcciones están configuradas
+            use_combo = bool(combinations['displacement_x'] and combinations['displacement_y'])
+            
+            # Configurar cargas
+            if use_combo:
+                self.sismo.loads.seism_loads['dx'] = combinations['displacement_x']
+                self.sismo.loads.seism_loads['dy'] = combinations['displacement_y']
+            else:  
+                self.sismo.loads.seism_loads['SDX'] = combinations['dynamic_x']
+                self.sismo.loads.seism_loads['SDY'] = combinations['dynamic_y']
+            
+            success = self.sismo.calculate_displacements(self.SapModel, use_combo)
+            
+            if success:
+                self.show_info("✅ Desplazamientos calculados exitosamente")
+            else:
+                self.show_error("Error calculando desplazamientos")
+                
+        except Exception as e:
+            self.show_error(f"Error: {e}")
 
     def calculate_drifts(self):
-        """Calcular derivas - implementar en clases derivadas"""
-        pass
+        """Calcular derivas"""
+        if not self._connect_etabs():
+            return
+            
+        try:
+            self.update_seismic_loads()
+            # Usar combinación de desplazamientos si está seleccionada
+            combinations = self.get_selected_combinations()
+            print(combinations)
+            
+            # Usar combo directo si ambas direcciones están configuradas
+            use_combo = bool(combinations['displacement_x'] and combinations['displacement_y'])
+            
+            # Configurar cargas
+            if use_combo:
+                self.sismo.loads.seism_loads['dx'] = combinations['displacement_x']
+                self.sismo.loads.seism_loads['dy'] = combinations['displacement_y']
+            else:  
+                self.sismo.loads.seism_loads['SDX'] = combinations['dynamic_x']
+                self.sismo.loads.seism_loads['SDY'] = combinations['dynamic_y']
+            
+            success = self.sismo.calculate_drifts(self.SapModel, use_combo)
+            
+            if success:
+                self.show_info("✅ Desplazamientos calculados exitosamente")
+            else:
+                self.show_error("Error calculando desplazamientos")
+                
+        except Exception as e:
+            self.show_error(f"Error: {e}")
+
+    def show_modal_data(self):
+        """Mostrar datos del análisis modal con validación de masa mínima"""
+        if not self._connect_etabs():
+            return
+        
+        from core.utils.etabs_utils import get_modal_data, process_modal_data
+        
+        modal_data = get_modal_data(self.SapModel)
+        if modal_data is not None:
+            results = process_modal_data(modal_data)
+            if results:
+                # Actualizar campos de período
+                self.ui.le_tx.setText(f"{results['Tx']:.4f}" if results['Tx'] else "N/A")
+                self.ui.le_ty.setText(f"{results['Ty']:.4f}" if results['Ty'] else "N/A")
+                
+                # Obtener porcentaje mínimo requerido
+                min_mass = float(self.ui.le_modal.text() or "90")
+                
+                # Validar cumplimiento
+                cumple_x = results['total_mass_x'] >= min_mass
+                cumple_y = results['total_mass_y'] >= min_mass
+                
+                # Mostrar información con validación
+                info = f"✅ ANÁLISIS MODAL:\n\n"
+                info += f"📊 PERÍODOS FUNDAMENTALES:\n"
+                info += f"   Tx = {results['Tx']:.4f} s\n" if results['Tx'] else "   Tx = N/A\n"
+                info += f"   Ty = {results['Ty']:.4f} s\n\n" if results['Ty'] else "   Ty = N/A\n\n"
+                
+                info += f"🎯 MASA PARTICIPATIVA:\n"
+                info += f"   Dirección X: {results['total_mass_x']:.1f}% "
+                info += f"{'✅' if cumple_x else '❌'} ({'OK' if cumple_x else f'< {min_mass}%'})\n"
+                info += f"   Dirección Y: {results['total_mass_y']:.1f}% "
+                info += f"{'✅' if cumple_y else '❌'} ({'OK' if cumple_y else f'< {min_mass}%'})\n\n"
+                
+                info += f"📈 RESUMEN:\n"
+                info += f"   Modos analizados: {results['num_modes']}\n"
+                info += f"   Mínimo requerido: {min_mass}%\n"
+                info += f"   Cumplimiento: {'✅ CUMPLE' if cumple_x and cumple_y else '❌ NO CUMPLE'}"
+                
+                # Mostrar como advertencia si no cumple
+                if cumple_x and cumple_y:
+                    self.show_info(info)
+                else:
+                    self.show_warning(info)
+                    
+                # Guardar datos para el botón "Ver Data"
+                self.modal_table_data = modal_data
+                
+            else:
+                self.show_warning("No se pudieron procesar los datos modales")
+        else:
+            self.show_warning("No hay datos modales disponibles. Ejecute el análisis modal en ETABS.")
+            
+    def show_modal_table(self):
+        """Mostrar tabla completa de datos modales"""
+        self.show_modal_data()
+        if hasattr(self, 'modal_table_data') and self.modal_table_data is not None:
+            from shared.dialogs.table_dialog import show_dataframe_dialog
+            
+            show_dataframe_dialog(
+                parent=self,
+                dataframe=self.modal_table_data,
+                title="Análisis Modal - Períodos y Masas Participativas",
+                info_text="Datos completos del análisis modal obtenidos de ETABS"
+            )
+        else:
+            self.show_warning("Primero ejecute 'Ver Data' para obtener los datos modales")
+
+    def update_all_data(self):
+        """Actualizar todos los datos desde ETABS"""
+        if not self._connect_etabs():
+            return
+        
+        # Actualizar combinaciones
+        self.refresh_all_combinations()
+        
+        # Actualizar datos modales
+        self.show_modal_data()
+        
+        self.show_info("Datos actualizados desde ETABS")

@@ -658,11 +658,16 @@ class AppBase(QMainWindow):
                 max_x = results.get('max_displacement_x', 0.0)
                 max_y = results.get('max_displacement_y', 0.0)
                 
+                # Actualizar campos
                 self.ui.le_desp_max_x.setText(f"{max_x:.3f} mm")
                 self.ui.le_desp_max_y.setText(f"{max_y:.3f} mm")
                 
-                # Aplicar validación visual si existe límite
-                self._validate_displacement_results(max_x, max_y)
+                print(f"Debug - Desplazamientos: X={max_x:.3f} mm, Y={max_y:.3f} mm")  # DEBUG
+                
+            else:
+                print("Debug - No hay displacement_results disponibles")  # DEBUG
+                self.ui.le_desp_max_x.setText("N/A")
+                self.ui.le_desp_max_y.setText("N/A")
                 
         except Exception as e:
             print(f"Error actualizando resultados de desplazamientos: {e}")

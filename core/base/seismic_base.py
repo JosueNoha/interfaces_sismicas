@@ -323,15 +323,36 @@ class SeismicBase:
             )
             
             # Almacenar resultados para la UI
-            if hasattr(self, 'displacement_x') and hasattr(self, 'displacement_y'):
-                # Los arrays ya están en mm desde ETABS
-                max_x = max(abs(x) for x in self.displacement_x) if len(self.displacement_x) > 0 else 0.0
-                max_y = max(abs(y) for y in self.displacement_y) if len(self.displacement_y) > 0 else 0.0
-                
-                self.displacement_results = {
-                    'max_displacement_x': max_x,
-                    'max_displacement_y': max_y
-                }
+            if hasattr(self, 'tables') and hasattr(self.tables, 'displacements'):
+                disp_data = self.tables.displacements
+                if disp_data is not None and not disp_data.empty:
+                    # Encontrar máximos en cada dirección
+                    # Las columnas pueden variar, buscar las correctas
+                    x_cols = [col for col in disp_data.columns if 'x' in col.lower() and ('max' in col.lower() or 'disp' in col.lower())]
+                    y_cols = [col for col in disp_data.columns if 'y' in col.lower() and ('max' in col.lower() or 'disp' in col.lower())]
+                    
+                    # Si no encontramos columnas específicas, usar genéricas
+                    if not x_cols and 'Maximum_x' in disp_data.columns:
+                        x_cols = ['Maximum_x']
+                    if not y_cols and 'Maximum_y' in disp_data.columns:
+                        y_cols = ['Maximum_y']
+                        
+                    max_x = disp_data[x_cols[0]].max() if x_cols else 0.0
+                    max_y = disp_data[y_cols[0]].max() if y_cols else 0.0
+                    
+                    self.displacement_results = {
+                        'max_displacement_x': max_x,
+                        'max_displacement_y': max_y
+                    }
+                else:
+                    # Fallback usando arrays si la tabla no está disponible
+                    max_x = max(abs(x) for x in self.disp_x) if hasattr(self, 'disp_x') and len(self.disp_x) > 0 else 0.0
+                    max_y = max(abs(y) for y in self.disp_y) if hasattr(self, 'disp_y') and len(self.disp_y) > 0 else 0.0
+                    
+                    self.displacement_results = {
+                        'max_displacement_x': max_x,
+                        'max_displacement_y': max_y
+                    }
                         
             return True
             

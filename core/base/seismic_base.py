@@ -322,6 +322,17 @@ class SeismicBase:
                 disp_x_raw, disp_y_raw, heights, use_displacement_combo
             )
             
+            # Almacenar resultados para la UI
+            if hasattr(self, 'displacement_x') and hasattr(self, 'displacement_y'):
+                # Los arrays ya están en mm desde ETABS
+                max_x = max(abs(x) for x in self.displacement_x) if len(self.displacement_x) > 0 else 0.0
+                max_y = max(abs(y) for y in self.displacement_y) if len(self.displacement_y) > 0 else 0.0
+                
+                self.displacement_results = {
+                    'max_displacement_x': max_x,
+                    'max_displacement_y': max_y
+                }
+                        
             return True
             
         except Exception as e:
@@ -471,6 +482,33 @@ class SeismicBase:
             self.fig_drifts = self._create_drift_figure(
                 drift_x_raw, drift_y_raw, heights, use_displacement_combo
             )
+            
+            # Almacenar resultados para la UI con información del piso
+            if hasattr(self, 'tables') and hasattr(self.tables, 'drifts'):
+                drift_data = self.tables.drifts
+                if drift_data is not None and not drift_data.empty:
+                    # Encontrar máximos y sus pisos correspondientes
+                    max_x = drift_data['Drifts_x'].max()
+                    max_y = drift_data['Drifts_y'].max()
+                    
+                    max_x_idx = drift_data['Drifts_x'].idxmax()
+                    max_y_idx = drift_data['Drifts_y'].idxmax()
+                    
+                    story_x = drift_data.loc[max_x_idx, 'Story'] if not drift_data.empty else 'N/A'
+                    story_y = drift_data.loc[max_y_idx, 'Story'] if not drift_data.empty else 'N/A'
+                    
+                    # Obtener límite desde la instancia o usar por defecto
+                    limit = getattr(self, 'max_drift', 0.007)
+                    
+                    self.drift_results = {
+                        'max_drift_x': max_x,
+                        'max_drift_y': max_y,
+                        'story_max_x': story_x,
+                        'story_max_y': story_y,
+                        'limit': limit,
+                        'complies_x': max_x <= limit,
+                        'complies_y': max_y <= limit,
+                        'complies_overall': (max_x <= limit) and (max_y <= limit)}
             
             return True
             

@@ -36,10 +36,8 @@ class PeruSeismicApp(AppBase):
         
         # Configurar extensiones específicas
         self._setup_peru_extensions()
-        
-        # Inicializar valores por defecto después de crear la interfaz
-        self._actualize_zona(1)  # Zona 2 por defecto
-        self._actualize_categoria()
+        self._initialize_peru_defaults()
+
     
     def _setup_peru_extensions(self):
         """Configurar funcionalidad específica de Perú"""
@@ -91,19 +89,26 @@ class PeruSeismicApp(AppBase):
             layout.addWidget(self.cb_categoria, current_row, 1)
             
             # AGREGAR parámetros específicos E.030
-            self._add_peru_parameter_display_internal(layout, current_row + 1)
+            self._add_peru_parameter_display(layout, current_row + 1)
             
         except Exception as e:
             print(f"Error agregando selectores Perú: {e}")
 
     def _actualize_zona(self, index):
         """Actualizar factor Z según zona"""
-        Z = {'0': '0.10', '1': '0.25', '2': '0.35', '3': '0.45'}  # index 0-3
-        z_value = float(Z[str(index)])
-        
-        self.sismo.Z = z_value
-        self.le_z_display.setText(f'{z_value:.3f}')
-        self._actualize_suelo()  # Recalcular S que depende de zona
+        try:
+            Z = {'0': '0.10', '1': '0.25', '2': '0.35', '3': '0.45'}  # index 0-3
+            z_value = float(Z[str(index)])
+            
+            self.sismo.Z = z_value
+            # Verificar que el campo existe antes de actualizarlo
+            if hasattr(self, 'le_z_display'):
+                self.le_z_display.setText(f'{z_value:.3f}')
+            
+            self._actualize_suelo()  # Recalcular S que depende de zona
+            
+        except Exception as e:
+            print(f"Error actualizando zona: {e}")
 
     def _actualize_suelo(self):
         """Actualizar parámetros S, Tp, Tl según tipo de suelo"""
@@ -151,22 +156,30 @@ class PeruSeismicApp(AppBase):
         else:
             self.le_u_display.setReadOnly(True)
             self.le_u_display.setStyleSheet("QLineEdit { background-color: #f0f0f0; }")
+            
+    def _initialize_peru_defaults(self):
+        """Inicializar valores por defecto de Perú después de crear la interfaz"""
+        try:
+            # Verificar que todos los widgets necesarios existan
+            required_widgets = ['cb_zona', 'cb_categoria', 'cb_suelo']
+            for widget_name in required_widgets:
+                if not hasattr(self, widget_name):
+                    print(f"Widget {widget_name} no encontrado, reintentando...")
+                    self._initialize_peru_defaults()
+                    return
+            
+            print("✅ Inicializando valores por defecto Perú...")
+            self._actualize_zona(1)  # Zona 2 por defecto (index 1)
+            self._actualize_categoria()
+            print("✅ Valores inicializados correctamente")
+            
+        except Exception as e:
+            print(f"Error inicializando valores Perú: {e}")
 
     def _add_peru_parameter_display(self, layout, start_row):
         """Agregar campos de parámetros específicos E.030 (solo lectura)"""
         try:
             current_row = start_row
-            
-            # Factor de suelo (editable)
-            self.label_soil_factor = QLabel("Factor Suelo:")
-            self.le_soil_factor = QLineEdit("1.0")
-            self.le_soil_factor.setToolTip("Factor de amplificación por tipo de suelo")
-            self.le_soil_factor.textChanged.connect(self._validate_soil_factor)
-            
-            layout.addWidget(self.label_soil_factor, current_row, 0)
-            layout.addWidget(self.le_soil_factor, current_row, 1)
-            
-            current_row += 1
             
             # Parámetros E.030 (solo lectura)
             readonly_style = "QLineEdit { background-color: #f0f0f0; }"
@@ -218,17 +231,6 @@ class PeruSeismicApp(AppBase):
         except Exception as e:
             print(f"Error agregando parámetros Perú: {e}")
             
-    def _validate_soil_factor(self):
-        """Validar factor de suelo"""
-        try:
-            value = float(self.le_soil_factor.text())
-            if 0.8 <= value <= 2.0:
-                self.le_soil_factor.setStyleSheet("")
-                self.sismo.soil_factor = value
-            else:
-                self.le_soil_factor.setStyleSheet("QLineEdit { border: 2px solid orange; }")
-        except ValueError:
-            self.le_soil_factor.setStyleSheet("QLineEdit { border: 2px solid red; }")
 
     def _update_peru_parameters_display(self):
         """Actualizar parámetros E.030 en campos de solo lectura"""

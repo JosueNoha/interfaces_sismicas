@@ -136,6 +136,8 @@ class Ui_MainWindow(object):
         layout.addWidget(scroll)
         
         self.tabWidget.addTab(self.tab_seismic, "Análisis Sísmico")
+        
+        
 
     def _setup_modal_section(self, parent_layout):
         """Configurar sección de análisis modal"""
@@ -163,6 +165,29 @@ class Ui_MainWindow(object):
         modal_layout.addWidget(self.label_ty, 1, 2)
         modal_layout.addWidget(self.le_ty, 1, 3)
         
+        # Campo para porcentaje mínimo de masa participativa
+        self.label_min_mass = QtWidgets.QLabel("% Masa Mín:")
+        self.le_min_mass_participation = QtWidgets.QLineEdit("90.0")
+        self.le_min_mass_participation.setMaximumWidth(60)
+        self.le_min_mass_participation.setToolTip("Porcentaje mínimo de masa participativa acumulada")
+
+        modal_layout.addWidget(self.label_min_mass, 1, 4)
+        modal_layout.addWidget(self.le_min_mass_participation, 1, 5)
+
+        # Etiquetas para masa participativa acumulada
+        self.label_participacion_x = QtWidgets.QLabel("Masa X (%):")
+        self.le_participacion_x = QtWidgets.QLineEdit()
+        self.le_participacion_x.setReadOnly(True)
+
+        self.label_participacion_y = QtWidgets.QLabel("Masa Y (%):")
+        self.le_participacion_y = QtWidgets.QLineEdit()
+        self.le_participacion_y.setReadOnly(True)
+
+        modal_layout.addWidget(self.label_participacion_x, 2, 0)
+        modal_layout.addWidget(self.le_participacion_x, 2, 1)
+        modal_layout.addWidget(self.label_participacion_y, 2, 2)
+        modal_layout.addWidget(self.le_participacion_y, 2, 3)
+                
         parent_layout.addWidget(self.group_modal)
 
     def _setup_combinations_section(self, parent_layout):
@@ -312,6 +337,56 @@ class Ui_MainWindow(object):
         
         displ_layout.addWidget(self.label_max_drift, 1, 0)
         displ_layout.addWidget(self.le_max_drift, 1, 1)
+        
+        # AGREGAR: Campos de resultados de desplazamientos
+        self.label_desp_max_x = QtWidgets.QLabel("Desp. máx X:")
+        self.le_desp_max_x = QtWidgets.QLineEdit()
+        self.le_desp_max_x.setReadOnly(True)
+        self.le_desp_max_x.setStyleSheet("QLineEdit { background-color: #f0f0f0; }")
+
+        self.label_desp_max_y = QtWidgets.QLabel("Desp. máx Y:")
+        self.le_desp_max_y = QtWidgets.QLineEdit()
+        self.le_desp_max_y.setReadOnly(True)
+        self.le_desp_max_y.setStyleSheet("QLineEdit { background-color: #f0f0f0; }")
+
+        displ_layout.addWidget(self.label_desp_max_x, 2, 0)
+        displ_layout.addWidget(self.le_desp_max_x, 2, 1)
+        displ_layout.addWidget(self.label_desp_max_y, 2, 2)
+        displ_layout.addWidget(self.le_desp_max_y, 2, 3)
+        
+        # AGREGAR: Campos de resultados de derivas
+        self.label_deriva_max_x = QtWidgets.QLabel("Deriva máx X:")
+        self.le_deriva_max_x = QtWidgets.QLineEdit()
+        self.le_deriva_max_x.setReadOnly(True)
+        self.le_deriva_max_x.setStyleSheet("QLineEdit { background-color: #f0f0f0; }")
+
+        self.label_deriva_max_y = QtWidgets.QLabel("Deriva máx Y:")
+        self.le_deriva_max_y = QtWidgets.QLineEdit()
+        self.le_deriva_max_y.setReadOnly(True)
+        self.le_deriva_max_y.setStyleSheet("QLineEdit { background-color: #f0f0f0; }")
+
+        displ_layout.addWidget(self.label_deriva_max_x, 3, 0)
+        displ_layout.addWidget(self.le_deriva_max_x, 3, 1)
+        displ_layout.addWidget(self.label_deriva_max_y, 3, 2)
+        displ_layout.addWidget(self.le_deriva_max_y, 3, 3)
+
+        # AGREGAR: Campos para pisos donde ocurren las derivas máximas
+        self.label_piso_deriva_x = QtWidgets.QLabel("Piso X:")
+        self.le_piso_deriva_x = QtWidgets.QLineEdit()
+        self.le_piso_deriva_x.setReadOnly(True)
+        self.le_piso_deriva_x.setStyleSheet("QLineEdit { background-color: #f0f0f0; }")
+        self.le_piso_deriva_x.setMaximumWidth(80)
+
+        self.label_piso_deriva_y = QtWidgets.QLabel("Piso Y:")
+        self.le_piso_deriva_y = QtWidgets.QLineEdit()
+        self.le_piso_deriva_y.setReadOnly(True)
+        self.le_piso_deriva_y.setStyleSheet("QLineEdit { background-color: #f0f0f0; }")
+        self.le_piso_deriva_y.setMaximumWidth(80)
+
+        displ_layout.addWidget(self.label_piso_deriva_x, 4, 0)
+        displ_layout.addWidget(self.le_piso_deriva_x, 4, 1)
+        displ_layout.addWidget(self.label_piso_deriva_y, 4, 2)
+        displ_layout.addWidget(self.le_piso_deriva_y, 4, 3)
         
         parent_layout.addWidget(self.group_displacements)
 

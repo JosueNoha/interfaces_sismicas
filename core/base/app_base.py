@@ -34,6 +34,9 @@ class AppBase(QMainWindow):
         self._connect_common_signals()
         self._init_default_values()
         self._setup_combinations()
+        
+        # Actualizar combinaciones al inicio
+        self._auto_refresh_combinations()
 
     def _setup_icon(self):
         """Configurar icono de la aplicación"""
@@ -49,6 +52,7 @@ class AppBase(QMainWindow):
         self.ui.b_desplazamiento.clicked.connect(self.calculate_displacements)
         self.ui.b_derivas.clicked.connect(self.calculate_drifts)
         self.ui.b_actualizar.clicked.connect(self.update_all_data)
+        
         # Gráfico de cortantes
         self.ui.b_view_dynamic.clicked.connect(lambda: self._show_plot('dynamic'))
         self.ui.b_view_static.clicked.connect(lambda: self._show_plot('static'))
@@ -60,6 +64,9 @@ class AppBase(QMainWindow):
         self.ui.b_torsion.clicked.connect(self.calculate_torsion)
         self.ui.b_torsion_table.clicked.connect(self.show_torsion_table)
         self.ui.le_torsion_limit.textChanged.connect(self._validate_torsion_limit)
+        
+        # Validación de masa participativa mínima
+        self.ui.le_min_mass_participation.textChanged.connect(self._validate_min_mass_participation)
         
         # Botones de imágenes
         self.ui.b_portada.clicked.connect(lambda: self.load_image('portada'))
@@ -112,6 +119,48 @@ class AppBase(QMainWindow):
             self.ui.cb_comb_displacement_x.addItem(case)
         for case in dynamic_y_cases:
             self.ui.cb_comb_displacement_y.addItem(case)
+            
+    def _auto_refresh_combinations(self):
+        """Actualizar combinaciones automáticamente al abrir la aplicación"""
+        try:
+            # Intentar conectar y actualizar
+            if self._connect_etabs():
+                combo_widgets = [
+                    self.ui.cb_comb_dynamic_x, self.ui.cb_comb_dynamic_y,
+                    self.ui.cb_comb_static_x, self.ui.cb_comb_static_y,
+                    self.ui.cb_comb_displacement_x, self.ui.cb_comb_displacement_y
+                ]
+                
+                from core.utils.etabs_utils import update_seismic_combinations
+                success = update_seismic_combinations(combo_widgets, self.SapModel)
+                
+                if success:
+                    print("✅ Combinaciones actualizadas automáticamente desde ETABS")
+                    self._auto_select_combinations_by_pattern()
+                else:
+                    self._set_disconnected_message()
+            else:
+                self._set_disconnected_message()
+                
+        except Exception as e:
+            print(f"Error en actualización automática: {e}")
+            self._set_disconnected_message()
+
+    def _set_disconnected_message(self):
+        """Establecer mensaje de no conectado en todos los ComboBoxes"""
+        disconnected_message = "No conectado a ETABS"
+        
+        combo_widgets = [
+            self.ui.cb_comb_dynamic_x, self.ui.cb_comb_dynamic_y,
+            self.ui.cb_comb_static_x, self.ui.cb_comb_static_y,
+            self.ui.cb_comb_displacement_x, self.ui.cb_comb_displacement_y
+        ]
+    
+        for combo in combo_widgets:
+            if combo is not None:
+                combo.clear()
+                combo.addItem(disconnected_message)
+                combo.setCurrentText(disconnected_message)
 
     def _refresh_dynamic_combinations(self):
         """Actualizar combinaciones dinámicas desde ETABS"""
@@ -144,12 +193,111 @@ class AppBase(QMainWindow):
             success = update_seismic_combinations(combo_widgets, self.SapModel)
             
             if success:
-                self.show_info("✅ Combinaciones actualizadas por dirección")
+                # Seleccionar automáticamente por patrones después de actualizar
+                selections = self._auto_select_combinations_by_pattern()
+                self.show_info(f"✅ Combinaciones actualizadas desde ETABS\n🎯 {selections} selecciones automáticas por patrón")
             else:
                 self.show_warning("⚠️ Actualización parcial")
+                self._set_disconnected_message()
                 
         except Exception as e:
             self.show_error(f"Error: {e}")
+            self._set_disconnected_message()
+            
+    def _auto_select_combinations_by_pattern(self):
+        """Seleccionar automáticamente combinaciones que cumplan patrones comunes"""
+        try:
+            # Patrones base (sin X/Y, se añaden automáticamente)
+            base_patterns = {
+                'static': ['SE', 'SS', 'S', 'Estat', 'Estatico', 'Static'],
+                'dynamic': ['SD', 'SDin', 'Dinamico', 'Dynamic', 'Modal', 'Sdin'],
+                'displacement': ['Despl', 'Drift', 'Deriva', 'Displacement', 'Desp']
+            }
+            
+            # Sufijos de dirección que se buscarán
+            direction_suffixes = ['X', 'Y']
+            
+            combo_mapping = {
+                ('static', 'X'): self.ui.cb_comb_static_x,
+                ('static', 'Y'): self.ui.cb_comb_static_y, 
+                ('dynamic', 'X'): self.ui.cb_comb_dynamic_x,
+                ('dynamic', 'Y'): self.ui.cb_comb_dynamic_y,
+                ('displacement', 'X'): self.ui.cb_comb_displacement_x,
+                ('displacement', 'Y'): self.ui.cb_comb_displacement_y
+            }
+            
+            selections_made = 0
+            
+            for (combo_type, direction), combo_widget in combo_mapping.items():
+                if combo_widget is None:
+                    continue
+                    
+                # Obtener todos los items del combo
+                all_items = [combo_widget.itemText(i) for i in range(combo_widget.count())]
+                
+                # Buscar coincidencias con patrones base + dirección
+                best_match = None
+                best_score = 0  # Para priorizar mejores coincidencias
+                
+                for base_pattern in base_patterns[combo_type]:
+                    for item in all_items:
+                        if item == "No conectado a ETABS":
+                            continue
+                        
+                        # Normalizar item (sin espacios, mayúsculas)
+                        item_normalized = item.replace(' ', '').replace('-', '').replace('_', '').upper()
+                        
+                        # Crear patrones posibles con el patrón base + dirección
+                        possible_patterns = [
+                            f"{base_pattern}{direction}",           # SDX
+                            f"{base_pattern} {direction}",          # SD X
+                            f"{base_pattern}_{direction}",          # SD_X
+                            f"{base_pattern}-{direction}",          # SD-X
+                            f"{base_pattern}.{direction}",          # SD.X
+                        ]
+                        
+                        # Buscar coincidencias
+                        for pattern in possible_patterns:
+                            pattern_normalized = pattern.replace(' ', '').replace('-', '').replace('_', '').replace('.', '').upper()
+                            
+                            # Coincidencia exacta (mayor prioridad)
+                            if pattern_normalized == item_normalized:
+                                best_match = item
+                                best_score = 100
+                                break
+                            
+                            # Coincidencia parcial (el patrón está contenido en el item)
+                            elif pattern_normalized in item_normalized and best_score < 50:
+                                best_match = item
+                                best_score = 50
+                            
+                            # Coincidencia inversa (el item está contenido en el patrón extendido)
+                            elif item_normalized in pattern_normalized and len(item_normalized) > 2 and best_score < 25:
+                                best_match = item
+                                best_score = 25
+                        
+                        # Si encontramos coincidencia exacta, no seguir buscando
+                        if best_score == 100:
+                            break
+                    
+                    # Si encontramos coincidencia exacta, no seguir buscando
+                    if best_score == 100:
+                        break
+                
+                # Seleccionar la mejor coincidencia encontrada
+                if best_match:
+                    combo_widget.setCurrentText(best_match)
+                    selections_made += 1
+                    print(f"✅ {combo_type} {direction}: {best_match} (score: {best_score})")
+            
+            if selections_made > 0:
+                print(f"✅ {selections_made} combinaciones seleccionadas automáticamente por patrón inteligente")
+            
+            return selections_made
+            
+        except Exception as e:
+            print(f"Error en selección automática por patrón: {e}")
+            return 0
 
     def update_seismic_loads(self):
         """Configurar todas las cargas sísmicas centralizadamente"""
@@ -169,7 +317,7 @@ class AppBase(QMainWindow):
         if self.SapModel is None:
             self.ETABSObject, self.SapModel = connect_to_etabs()
             if self.SapModel is None:
-                self.show_warning("No se pudo conectar con ETABS. Verifique que esté abierto.")
+                # No mostrar warning en actualización automática
                 return False
         return True
 
@@ -200,12 +348,16 @@ class AppBase(QMainWindow):
             self.sismo.max_drift = default_drift
     
     def _validate_max_drift(self):
-        """Validar entrada de deriva máxima"""
+        """Validar límite de deriva máxima"""
         try:
-            value = float(self.ui.le_max_drift.text())
-            if 0.001 <= value <= 0.05:  # Rango válido 0.1% a 5%
-                self.ui.le_max_drift.setStyleSheet("")  # Limpiar error
-                self.sismo.max_drift = value
+            drift_limit = float(self.ui.le_max_drift.text())
+            if 0.001 <= drift_limit <= 0.020:
+                self.ui.le_max_drift.setStyleSheet("")
+                # Re-validar derivas existentes si hay datos
+                if hasattr(self.sismo, 'drift_results'):
+                    self.sismo.max_drift = drift_limit
+                    self.sismo.drift_results['limit'] = drift_limit
+                    self._update_drift_results()
             else:
                 self.ui.le_max_drift.setStyleSheet("QLineEdit { border: 2px solid orange; }")
         except ValueError:
@@ -470,11 +622,10 @@ class AppBase(QMainWindow):
             return
             
         try:
-            # Usar combinación de desplazamientos si está seleccionada
             self.update_seismic_loads()
             combinations = self.get_selected_combinations()
             
-            # Usar combo directo si ambas direcciones están configuradas
+            # Decidir si usar combinación de desplazamientos o dinámico directo
             use_combo = bool(combinations['displacement_x'] and combinations['displacement_y'])
             
             # Configurar cargas
@@ -488,6 +639,8 @@ class AppBase(QMainWindow):
             success = self.sismo.calculate_displacements(self.SapModel, use_combo)
             
             if success:
+                # Actualizar campos de resultados
+                self._update_displacement_results()
                 self.show_info("✅ Desplazamientos calculados exitosamente")
                 self._show_displacements_plot()
             else:
@@ -495,6 +648,29 @@ class AppBase(QMainWindow):
                 
         except Exception as e:
             self.show_error(f"Error: {e}")
+            
+    def _update_displacement_results(self):
+        """Actualizar campos de resultados de desplazamientos"""
+        try:
+            if hasattr(self.sismo, 'displacement_results'):
+                results = self.sismo.displacement_results
+                
+                max_x = results.get('max_displacement_x', 0.0)
+                max_y = results.get('max_displacement_y', 0.0)
+                
+                self.ui.le_desp_max_x.setText(f"{max_x:.3f} mm")
+                self.ui.le_desp_max_y.setText(f"{max_y:.3f} mm")
+                
+                # Aplicar validación visual si existe límite
+                self._validate_displacement_results(max_x, max_y)
+                
+        except Exception as e:
+            print(f"Error actualizando resultados de desplazamientos: {e}")
+
+    def _validate_displacement_results(self, max_x: float, max_y: float):
+        """Validar desplazamientos contra límites (si aplica)"""
+        # Por ahora solo mostrar, se puede agregar validación específica después
+        pass
             
     def _show_displacements_plot(self):
         """Mostrar gráfico de desplazamientos internamente"""
@@ -549,16 +725,90 @@ class AppBase(QMainWindow):
                 self.sismo.loads.seism_loads['SDX'] = combinations['dynamic_x']
                 self.sismo.loads.seism_loads['SDY'] = combinations['dynamic_y']
             
+            # Obtener límite de deriva
+            max_drift_limit = self._get_max_drift_limit()
+            self.sismo.max_drift = max_drift_limit
+            
             success = self.sismo.calculate_drifts(self.SapModel, use_combo)
             
             if success:
-                self.show_info("✅ Desplazamientos calculados exitosamente")
+                # Actualizar campos de resultados
+                self._update_drift_results()
+                
+                # Verificar cumplimiento y mostrar mensaje apropiado
+                drift_results = getattr(self.sismo, 'drift_results', {})
+                complies = drift_results.get('complies_overall', True)
+                
+                if complies:
+                    self.show_info("✅ Derivas calculadas - CUMPLE límites")
+                else:
+                    self.show_warning("⚠️ Derivas calculadas - EXCEDE límites")
+                    
                 self._show_drifts_plot()
             else:
-                self.show_error("Error calculando desplazamientos")
+                self.show_error("Error calculando derivas")
                 
         except Exception as e:
             self.show_error(f"Error: {e}")
+    
+    def _get_max_drift_limit(self) -> float:
+        """Obtener límite máximo de deriva validado"""
+        try:
+            limit = float(self.ui.le_max_drift.text())
+            if 0.001 <= limit <= 0.020:
+                self.ui.le_max_drift.setStyleSheet("")
+                return limit
+            else:
+                self.ui.le_max_drift.setStyleSheet("QLineEdit { border: 2px solid orange; }")
+                return 0.007  # Valor por defecto
+        except ValueError:
+            self.ui.le_max_drift.setStyleSheet("QLineEdit { border: 2px solid red; }")
+            return 0.007
+            
+    def _update_drift_results(self):
+        """Actualizar campos de resultados de derivas"""
+        try:
+            if hasattr(self.sismo, 'drift_results'):
+                results = self.sismo.drift_results
+                
+                max_x = results.get('max_drift_x', 0.0)
+                max_y = results.get('max_drift_y', 0.0)
+                story_x = results.get('story_max_x', 'N/A')
+                story_y = results.get('story_max_y', 'N/A')
+                limit = results.get('limit', 0.007)
+                
+                # Actualizar campos
+                self.ui.le_deriva_max_x.setText(f"{max_x:.4f}")
+                self.ui.le_deriva_max_y.setText(f"{max_y:.4f}")
+                self.ui.le_piso_deriva_x.setText(str(story_x))
+                self.ui.le_piso_deriva_y.setText(str(story_y))
+                
+                # Aplicar validación visual
+                complies_x = max_x <= limit
+                complies_y = max_y <= limit
+                
+                self._apply_drift_validation(complies_x, complies_y)
+                
+        except Exception as e:
+            print(f"Error actualizando resultados de derivas: {e}")
+
+    def _apply_drift_validation(self, complies_x: bool, complies_y: bool):
+        """Aplicar validación visual para derivas"""
+        # Validar dirección X
+        if complies_x:
+            self.ui.le_deriva_max_x.setStyleSheet("QLineEdit { background-color: #ccffcc; }")
+            self.ui.le_piso_deriva_x.setStyleSheet("QLineEdit { background-color: #ccffcc; }")
+        else:
+            self.ui.le_deriva_max_x.setStyleSheet("QLineEdit { background-color: #ffcccc; font-weight: bold; }")
+            self.ui.le_piso_deriva_x.setStyleSheet("QLineEdit { background-color: #ffcccc; font-weight: bold; }")
+        
+        # Validar dirección Y
+        if complies_y:
+            self.ui.le_deriva_max_y.setStyleSheet("QLineEdit { background-color: #ccffcc; }")
+            self.ui.le_piso_deriva_y.setStyleSheet("QLineEdit { background-color: #ccffcc; }")
+        else:
+            self.ui.le_deriva_max_y.setStyleSheet("QLineEdit { background-color: #ffcccc; font-weight: bold; }")
+            self.ui.le_piso_deriva_y.setStyleSheet("QLineEdit { background-color: #ffcccc; font-weight: bold; }")
             
     def _show_drifts_plot(self):
         """Mostrar gráfico de desplazamientos internamente"""
@@ -593,7 +843,7 @@ class AppBase(QMainWindow):
                 print(f"Error mostrando gráfico: {e}")
 
     def show_modal_data(self):
-        """Mostrar datos del análisis modal con validación de masa mínima"""
+        """Mostrar análisis modal con validación de masa mínima"""
         if not self._connect_etabs():
             return
         
@@ -607,31 +857,39 @@ class AppBase(QMainWindow):
                 self.ui.le_tx.setText(f"{results['Tx']:.4f}" if results['Tx'] else "N/A")
                 self.ui.le_ty.setText(f"{results['Ty']:.4f}" if results['Ty'] else "N/A")
                 
-                # Obtener porcentaje mínimo requerido
-                min_mass = float(self.ui.le_modal.text() or "90")
+                # Actualizar campos de masa participativa acumulada
+                self.ui.le_participacion_x.setText(f"{results['total_mass_x']:.1f}")
+                self.ui.le_participacion_y.setText(f"{results['total_mass_y']:.1f}")
+                
+                # Obtener porcentaje mínimo requerido y validar
+                min_mass = self._get_min_mass_participation()
                 
                 # Validar cumplimiento
                 cumple_x = results['total_mass_x'] >= min_mass
                 cumple_y = results['total_mass_y'] >= min_mass
                 
-                # Mostrar información con validación
+                # Aplicar validación visual con colores
+                self._apply_mass_validation(cumple_x, cumple_y)
+                
+                # Mostrar información completa
                 info = f"✅ ANÁLISIS MODAL:\n\n"
                 info += f"📊 PERÍODOS FUNDAMENTALES:\n"
                 info += f"   Tx = {results['Tx']:.4f} s\n" if results['Tx'] else "   Tx = N/A\n"
                 info += f"   Ty = {results['Ty']:.4f} s\n\n" if results['Ty'] else "   Ty = N/A\n\n"
                 
-                info += f"🎯 MASA PARTICIPATIVA:\n"
-                info += f"   Dirección X: {results['total_mass_x']:.1f}% "
-                info += f"{'✅' if cumple_x else '❌'} ({'OK' if cumple_x else f'< {min_mass}%'})\n"
-                info += f"   Dirección Y: {results['total_mass_y']:.1f}% "
-                info += f"{'✅' if cumple_y else '❌'} ({'OK' if cumple_y else f'< {min_mass}%'})\n\n"
+                info += f"🎯 MASA PARTICIPATIVA ACUMULADA:\n"
+                info += f"   {'✅' if cumple_x else '❌'} Dirección X: {results['total_mass_x']:.1f}% (mín: {min_mass}%)\n"
+                info += f"   {'✅' if cumple_y else '❌'} Dirección Y: {results['total_mass_y']:.1f}% (mín: {min_mass}%)\n\n"
                 
                 info += f"📈 RESUMEN:\n"
                 info += f"   Modos analizados: {results['num_modes']}\n"
-                info += f"   Mínimo requerido: {min_mass}%\n"
-                info += f"   Cumplimiento: {'✅ CUMPLE' if cumple_x and cumple_y else '❌ NO CUMPLE'}"
                 
-                # Mostrar como advertencia si no cumple
+                # Estado general
+                overall_status = "CUMPLE" if (cumple_x and cumple_y) else "NO CUMPLE"
+                color = "🟢" if (cumple_x and cumple_y) else "🔴"
+                info += f"   {color} VALIDACIÓN: {overall_status}"
+                
+                # Mostrar como info o warning según cumplimiento
                 if cumple_x and cumple_y:
                     self.show_info(info)
                 else:
@@ -644,6 +902,56 @@ class AppBase(QMainWindow):
                 self.show_warning("No se pudieron procesar los datos modales")
         else:
             self.show_warning("No hay datos modales disponibles. Ejecute el análisis modal en ETABS.")
+
+    def _get_min_mass_participation(self) -> float:
+        """Obtener porcentaje mínimo de masa participativa validado"""
+        try:
+            min_percent = float(self.ui.le_min_mass_participation.text())
+            if 70.0 <= min_percent <= 95.0:
+                self.ui.le_min_mass_participation.setStyleSheet("")
+                return min_percent
+            else:
+                self.ui.le_min_mass_participation.setStyleSheet("QLineEdit { border: 2px solid orange; }")
+                return 90.0  # Valor por defecto
+        except ValueError:
+            self.ui.le_min_mass_participation.setStyleSheet("QLineEdit { border: 2px solid red; }")
+            return 90.0
+
+    def _apply_mass_validation(self, complies_x: bool, complies_y: bool):
+        """Aplicar validación visual con colores para masa participativa"""
+        # Validar dirección X
+        if complies_x:
+            self.ui.le_participacion_x.setStyleSheet("QLineEdit { background-color: #ccffcc; }")
+        else:
+            self.ui.le_participacion_x.setStyleSheet("QLineEdit { background-color: #ffcccc; font-weight: bold; }")
+        
+        # Validar dirección Y
+        if complies_y:
+            self.ui.le_participacion_y.setStyleSheet("QLineEdit { background-color: #ccffcc; }")
+        else:
+            self.ui.le_participacion_y.setStyleSheet("QLineEdit { background-color: #ffcccc; font-weight: bold; }")
+
+    def _validate_min_mass_participation(self):
+        """Validar y actualizar porcentaje mínimo de masa participativa"""
+        min_percent = self._get_min_mass_participation()
+        
+        # Re-validar datos modales actuales si existen
+        if (hasattr(self, 'ui') and 
+            hasattr(self.ui, 'le_participacion_x') and 
+            hasattr(self.ui, 'le_participacion_y')):
+            
+            try:
+                current_x = float(self.ui.le_participacion_x.text())
+                current_y = float(self.ui.le_participacion_y.text())
+                
+                # Re-aplicar validación con nuevo límite
+                complies_x = current_x >= min_percent
+                complies_y = current_y >= min_percent
+                
+                self._apply_mass_validation(complies_x, complies_y)
+                
+            except (ValueError, AttributeError):
+                pass  # No hay datos para re-validar
             
     def show_modal_table(self):
         """Mostrar tabla completa de datos modales"""

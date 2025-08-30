@@ -88,8 +88,6 @@ class SeismicParamsWidget(QtWidgets.QWidget):
         row = 0
         
         # Factor de zona Z
-        self.label_z = QtWidgets.QLabel("Factor Z:")
-        self.sb_z = QtWidgets.QDoubleSpinBox()
         self.sb_z.setRange(0.1, 1.0)
         self.sb_z.setSingleStep(0.05)
         self.sb_z.setDecimals(3)
@@ -98,12 +96,6 @@ class SeismicParamsWidget(QtWidgets.QWidget):
         self.layout.addWidget(self.label_z, row, 0)
         self.layout.addWidget(self.sb_z, row, 1)
         self.param_widgets['Z'] = self.sb_z
-        
-        # Factor de uso U
-        self.label_u = QtWidgets.QLabel("Factor U:")
-        self.cb_u = QtWidgets.QComboBox()
-        self.cb_u.addItems(['1.0', '1.3', '1.5'])
-        self.cb_u.setCurrentText('1.0')
         
         self.layout.addWidget(self.label_u, row, 2)
         self.layout.addWidget(self.cb_u, row, 3)

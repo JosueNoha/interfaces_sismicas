@@ -3,7 +3,7 @@ Interfaz principal unificada con ComboBoxes de combinaciones
 """
 
 from PyQt5 import QtCore, QtGui, QtWidgets
-
+from ui.widgets.units_widget import UnitsWidget
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -99,6 +99,10 @@ class Ui_MainWindow(object):
         self.group_seismic_params = QtWidgets.QGroupBox("Parámetros Sísmicos")
         self.seismic_params_layout = QtWidgets.QGridLayout(self.group_seismic_params)
         layout.addWidget(self.group_seismic_params)
+        
+        # Widget de unidades de trabajo
+        self.units_widget = UnitsWidget()
+        layout.addWidget(self.units_widget)
         
         # Espaciador
         layout.addStretch()

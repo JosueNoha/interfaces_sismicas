@@ -86,6 +86,10 @@ class AppBase(QMainWindow):
         # Conectar botones de combinaciones
         self._connect_combination_signals()
         
+        # Conectar widget de unidades
+        if hasattr(self.ui, 'units_widget'):
+            self.ui.units_widget.units_changed.connect(self._on_units_changed)
+        
 
     def _connect_combination_signals(self):
         """Conectar señales relacionadas con combinaciones"""
@@ -457,6 +461,69 @@ class AppBase(QMainWindow):
                 # Si hay error, usar valor por defecto
                 self.sismo.max_drift = 0.007
                 self.ui.le_max_drift.setText("0.007")
+                
+    def _on_units_changed(self, units_dict):
+        """Manejar cambio de unidades de trabajo"""
+        # Actualizar unidades en el objeto sísmico
+        self.sismo.set_units(units_dict)
+        
+        # Actualizar tooltips y labels de la interfaz
+        self._update_interface_units(units_dict)
+        
+        # Regenerar gráficos existentes con nuevas unidades
+        self._refresh_existing_plots()
+        
+    def _refresh_existing_plots(self):
+        """Regenerar gráficos existentes con las nuevas unidades"""
+        # Regenerar gráfico de desplazamientos si existe
+        if hasattr(self.sismo, 'disp_x') and hasattr(self.sismo, 'disp_y') and hasattr(self.sismo, 'disp_h'):
+            use_combo = getattr(self.sismo, '_used_displacement_combo', False)
+            self.sismo.fig_displacements = self.sismo._create_displacement_figure(
+                self.sismo.disp_x, self.sismo.disp_y, self.sismo.disp_h, use_combo
+            )
+        
+        # Regenerar gráfico de derivas si existe  
+        if hasattr(self.sismo, 'drift_x') and hasattr(self.sismo, 'drift_y') and hasattr(self.sismo, 'drift_h'):
+            use_combo = getattr(self.sismo, '_used_drift_combo', False)
+            self.sismo.fig_drifts = self.sismo._create_drift_figure(
+                self.sismo.drift_x, self.sismo.drift_y, self.sismo.drift_h, use_combo
+            )
+        
+        # Regenerar gráficos de cortantes si existen (con casos guardados)
+        if hasattr(self.sismo, 'shear_dynamic') and not self.sismo.shear_dynamic.empty:
+            # Usar casos guardados o combinaciones actuales
+            sx = getattr(self.sismo, '_saved_sx_dynamic', [])
+            sy = getattr(self.sismo, '_saved_sy_dynamic', [])
+            if sx and sy:
+                self.sismo.dynamic_shear_fig = self.sismo._create_shear_figure(
+                    self.sismo.shear_dynamic, sx, sy, 'dynamic'
+                )
+        
+        if hasattr(self.sismo, 'shear_static') and not self.sismo.shear_static.empty:
+            # Usar casos guardados o combinaciones actuales
+            sx = getattr(self.sismo, '_saved_sx_static', [])
+            sy = getattr(self.sismo, '_saved_sy_static', [])
+            if sx and sy:
+                self.sismo.static_shear_fig = self.sismo._create_shear_figure(
+                    self.sismo.shear_static, sx, sy, 'static'
+                )
+    
+    def _update_interface_units(self, units_dict):
+        """Actualizar las unidades mostradas en la interfaz"""
+        u_f = units_dict.get('fuerzas', 'tonf')
+        u_d = units_dict.get('desplazamientos', 'mm')
+        
+        # Actualizar títulos de grupos si existen
+        if hasattr(self.ui, 'group_shear'):
+            self.ui.group_shear.setTitle(f"Fuerzas Cortantes ({u_f})")
+        if hasattr(self.ui, 'group_displacement'):
+            self.ui.group_displacement.setTitle(f"Desplazamientos ({u_d}) y Derivas")
+    
+    def get_current_units(self):
+        """Obtener unidades actuales"""
+        if hasattr(self.ui, 'units_widget'):
+            return self.ui.units_widget.get_current_units()
+        return {'alturas': 'm', 'desplazamientos': 'mm', 'fuerzas': 'tonf'}
 
     def show_error(self, message: str):
         """Mostrar mensaje de error"""

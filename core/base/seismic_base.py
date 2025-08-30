@@ -51,6 +51,12 @@ class SeismicBase:
         self.tables = self.Tables()
         self.data = self.Data()
 
+    def set_units(self, units_dict):
+        """Establecer unidades de trabajo"""
+        self.u_h = units_dict.get('alturas', 'm')
+        self.u_d = units_dict.get('desplazamientos', 'mm')  
+        self.u_f = units_dict.get('fuerzas', 'tonf')
+
     def set_dynamic_attr(self, name, value):
         """Establecer atributo dinámico"""
         self.dynamic_attrs[name] = value
@@ -149,6 +155,22 @@ class SeismicBase:
             if not static_table.empty:
                 self.shear_static = static_table
                 self.static_shear_fig = self._create_shear_figure(static_table, static_cases[:1], static_cases[1:], 'static')
+                
+                
+            # Guardar casos para poder regenerar gráficos con nuevas unidades
+            if not dynamic_table.empty:
+                self.shear_dynamic = dynamic_table
+                self.dynamic_shear_fig = self._create_shear_figure(dynamic_table, dynamic_cases[:1], dynamic_cases[1:], 'dynamic')
+                # Guardar casos para regeneración
+                self._saved_sx_dynamic = dynamic_cases[:1]
+                self._saved_sy_dynamic = dynamic_cases[1:]
+            
+            if not static_table.empty:
+                self.shear_static = static_table
+                self.static_shear_fig = self._create_shear_figure(static_table, static_cases[:1], static_cases[1:], 'static')
+                # Guardar casos para regeneración
+                self._saved_sx_static = static_cases[:1] 
+                self._saved_sy_static = static_cases[1:]
                 
             return not dynamic_table.empty, not static_table.empty
             
@@ -353,6 +375,9 @@ class SeismicBase:
                         'max_displacement_x': max_x,
                         'max_displacement_y': max_y
                     }
+                    
+            # Recordar si se usó combo para poder regenerar después
+            self._used_displacement_combo = use_displacement_combo
                         
             return True
             
@@ -530,6 +555,9 @@ class SeismicBase:
                         'complies_x': max_x <= limit,
                         'complies_y': max_y <= limit,
                         'complies_overall': (max_x <= limit) and (max_y <= limit)}
+                    
+            # Recordar si se usó combo para poder regenerar después  
+            self._used_drift_combo = use_displacement_combo
             
             return True
             

@@ -53,15 +53,20 @@ class AppBase(QMainWindow):
         self.ui.b_view_dynamic.clicked.connect(lambda: self._show_plot('dynamic'))
         self.ui.b_view_static.clicked.connect(lambda: self._show_plot('static'))
         
+        # Validacion de deriva maxima
+        self.ui.le_max_drift.textChanged.connect(self._validate_max_drift)
+
+        # Botón irregularidad torsional
+        self.ui.b_torsion.clicked.connect(self.calculate_torsion)
+        self.ui.b_torsion_table.clicked.connect(self.show_torsion_table)
+        self.ui.le_torsion_limit.textChanged.connect(self._validate_torsion_limit)
+        
         # Botones de imágenes
         self.ui.b_portada.clicked.connect(lambda: self.load_image('portada'))
         self.ui.b_planta.clicked.connect(lambda: self.load_image('planta'))
         self.ui.b_3D.clicked.connect(lambda: self.load_image('3d'))
         self.ui.b_defX.clicked.connect(lambda: self.load_image('defX'))
         self.ui.b_defY.clicked.connect(lambda: self.load_image('defY'))
-        
-        # Validacion de deriva maxima
-        self.ui.le_max_drift.textChanged.connect(self._validate_max_drift)
         
         # Botones de descripciones
         self.ui.b_descripcion.clicked.connect(lambda: self.open_description_dialog('descripcion'))
@@ -74,14 +79,6 @@ class AppBase(QMainWindow):
         # Conectar botones de combinaciones
         self._connect_combination_signals()
         
-        # Agregar botón para actualizar todas las combinaciones
-        if hasattr(self.ui, 'seismic_params_layout'):
-            from PyQt5.QtWidgets import QPushButton
-            self.b_refresh_all = QPushButton("🔄 Actualizar Todas las Combinaciones")
-            self.b_refresh_all.clicked.connect(self.refresh_all_combinations)
-            layout = self.ui.seismic_params_layout
-            current_row = layout.rowCount()
-            layout.addWidget(self.b_refresh_all, current_row, 0, 1, 4)
 
     def _connect_combination_signals(self):
         """Conectar señales relacionadas con combinaciones"""
@@ -662,6 +659,123 @@ class AppBase(QMainWindow):
             )
         else:
             self.show_warning("Primero ejecute 'Ver Data' para obtener los datos modales")
+            
+    def calculate_torsion(self):
+        """Calcular irregularidad torsional"""
+        if not self._connect_etabs():
+            return
+            
+        try:
+            # Obtener límite configurable
+            torsion_limit = self._get_torsion_limit()
+            if torsion_limit is None:
+                return
+                
+            # Obtener tipo de combinación seleccionada
+            combo_type = self.ui.cb_torsion_combo.currentText().lower()
+            combinations = self.get_selected_combinations()
+            
+            # Seleccionar combinaciones según el tipo
+            if combo_type == "dinámicas":
+                cases_x = [combinations['dynamic_x']]
+                cases_y = [combinations['dynamic_y']]
+            elif combo_type == "estáticas":
+                cases_x = [combinations['static_x']]
+                cases_y = [combinations['static_y']]
+            else:  # desplazamientos
+                cases_x = [combinations['displacement_x']]
+                cases_y = [combinations['displacement_y']]
+            
+            # Filtrar casos vacíos
+            cases_x = [c for c in cases_x if c.strip()]
+            cases_y = [c for c in cases_y if c.strip()]
+            
+            if not cases_x or not cases_y:
+                self.show_warning(f"Seleccione combinaciones para {combo_type}")
+                return
+            
+            # Calcular irregularidad torsional
+            success = self.sismo.calculate_torsional_irregularity(self.SapModel, cases_x, cases_y)
+            
+            if success:
+                # Actualizar campos de resultados con validación automática
+                torsion_data = getattr(self.sismo, 'torsion_results', {})
+                
+                ratio_x = torsion_data.get('ratio_x', 0.0)
+                ratio_y = torsion_data.get('ratio_y', 0.0)
+                
+                self.ui.le_delta_max_x.setText(f"{torsion_data.get('delta_max_x', 0.0):.4f}")
+                self.ui.le_delta_prom_x.setText(f"{torsion_data.get('delta_prom_x', 0.0):.4f}")
+                self.ui.le_relacion_x.setText(f"{ratio_x:.3f}")
+                
+                self.ui.le_delta_max_y.setText(f"{torsion_data.get('delta_max_y', 0.0):.4f}")
+                self.ui.le_delta_prom_y.setText(f"{torsion_data.get('delta_prom_y', 0.0):.4f}")
+                self.ui.le_relacion_y.setText(f"{ratio_y:.3f}")
+                
+                # Aplicar validación automática con colores
+                self._apply_torsion_validation(ratio_x, ratio_y, torsion_limit)
+                
+                # Verificar irregularidad
+                irregular_x = ratio_x > torsion_limit
+                irregular_y = ratio_y > torsion_limit
+                
+                status = "IRREGULAR" if (irregular_x or irregular_y) else "REGULAR"
+                color = "🔴" if (irregular_x or irregular_y) else "🟢"
+                self.show_info(f"✅ Irregularidad torsional calculada\n\n{color} Estado: {status}")
+                
+            else:
+                self.show_error("Error calculando irregularidad torsional")
+                
+        except Exception as e:
+            self.show_error(f"Error: {e}")
+            
+    def _get_torsion_limit(self) -> float:
+        """Obtener límite de torsión validado"""
+        try:
+            limit = float(self.ui.le_torsion_limit.text())
+            if 1.0 <= limit <= 2.0:
+                self.ui.le_torsion_limit.setStyleSheet("")
+                return limit
+            else:
+                self.ui.le_torsion_limit.setStyleSheet("QLineEdit { border: 2px solid orange; }")
+                self.show_warning("Límite debe estar entre 1.0 y 2.0")
+                return None
+        except ValueError:
+            self.ui.le_torsion_limit.setStyleSheet("QLineEdit { border: 2px solid red; }")
+            return None
+        
+    def _validate_torsion_limit(self):
+        """Validar entrada de límite torsional"""
+        self._get_torsion_limit()  # Solo para validación visual
+
+    def _apply_torsion_validation(self, ratio_x: float, ratio_y: float, limit: float):
+        """Aplicar validación automática con colores"""
+        # Validar dirección X
+        if ratio_x > limit:
+            self.ui.le_relacion_x.setStyleSheet("QLineEdit { background-color: #ffcccc; font-weight: bold; }")
+        else:
+            self.ui.le_relacion_x.setStyleSheet("QLineEdit { background-color: #ccffcc; }")
+        
+        # Validar dirección Y
+        if ratio_y > limit:
+            self.ui.le_relacion_y.setStyleSheet("QLineEdit { background-color: #ffcccc; font-weight: bold; }")
+        else:
+            self.ui.le_relacion_y.setStyleSheet("QLineEdit { background-color: #ccffcc; }")
+
+    def show_torsion_table(self):
+        """Mostrar tabla detallada de irregularidad torsional"""
+        if not hasattr(self.sismo, 'torsion_table_data') or self.sismo.torsion_table_data is None:
+            self.show_warning("Primero calcule la irregularidad torsional")
+            return
+        
+        from shared.dialogs.table_dialog import show_dataframe_dialog
+        
+        show_dataframe_dialog(
+            parent=self,
+            dataframe=self.sismo.torsion_table_data,
+            title="Irregularidad Torsional - Datos Detallados",
+            info_text="Análisis detallado de irregularidad torsional por piso y dirección"
+        )
 
     def update_all_data(self):
         """Actualizar todos los datos desde ETABS"""

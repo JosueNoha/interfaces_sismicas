@@ -9,6 +9,7 @@ from core.base.app_base import AppBase
 from core.config.app_config import PERU_CONFIG
 from core.utils.common_validations import create_validator
 from ui.main_window import Ui_MainWindow
+from PyQt5.QtWidgets import QLabel, QComboBox, QLineEdit
 
 
 class PeruSeismicApp(AppBase):
@@ -35,6 +36,10 @@ class PeruSeismicApp(AppBase):
         
         # Configurar extensiones específicas
         self._setup_peru_extensions()
+        
+        # Inicializar valores por defecto después de crear la interfaz
+        self._actualize_zona(1)  # Zona 2 por defecto
+        self._actualize_categoria()
     
     def _setup_peru_extensions(self):
         """Configurar funcionalidad específica de Perú"""
@@ -56,56 +61,197 @@ class PeruSeismicApp(AppBase):
             # Selector de zona sísmica
             self.label_zona = QLabel("Zona Sísmica:")
             self.cb_zona = QComboBox()
-            self.cb_zona.addItems(list(self.zonas_peru.keys()))
-            self.cb_zona.setCurrentText('Zona 2')  # Lima por defecto
-            self.cb_zona.currentTextChanged.connect(self._on_zone_changed)
+            self.cb_zona.addItems(['1', '2', '3', '4'])  # Solo números
+            self.cb_zona.setCurrentText('2')  # Lima por defecto
+            self.cb_zona.currentIndexChanged.connect(self._actualize_zona)
             
             layout.addWidget(self.label_zona, current_row, 0)
             layout.addWidget(self.cb_zona, current_row, 1)
             
+            # Selector de tipo de suelo
+            self.label_suelo = QLabel("Tipo de Suelo:")
+            self.cb_suelo = QComboBox()
+            self.cb_suelo.addItems(['S0', 'S1', 'S2', 'S3'])
+            self.cb_suelo.setCurrentText('S1')
+            self.cb_suelo.currentTextChanged.connect(self._actualize_suelo)
+            
+            layout.addWidget(self.label_suelo, current_row, 2)
+            layout.addWidget(self.cb_suelo, current_row, 3)
+            
+            current_row += 1
+            
             # Selector de categoría
             self.label_categoria = QLabel("Categoría:")
             self.cb_categoria = QComboBox()
-            self.cb_categoria.addItems(list(self.factores_uso.keys()))
-            self.cb_categoria.setCurrentText('B - Comunes')
-            self.cb_categoria.currentTextChanged.connect(self._on_category_changed)
+            self.cb_categoria.addItems(['A1', 'A2', 'B', 'C', 'D'])
+            self.cb_categoria.setCurrentText('B')
+            self.cb_categoria.currentTextChanged.connect(self._actualize_categoria)
             
-            layout.addWidget(self.label_categoria, current_row, 2)
-            layout.addWidget(self.cb_categoria, current_row, 3)
+            layout.addWidget(self.label_categoria, current_row, 0)
+            layout.addWidget(self.cb_categoria, current_row, 1)
+            
+            # AGREGAR parámetros específicos E.030
+            self._add_peru_parameter_display_internal(layout, current_row + 1)
             
         except Exception as e:
             print(f"Error agregando selectores Perú: {e}")
-    
+
+    def _actualize_zona(self, index):
+        """Actualizar factor Z según zona"""
+        Z = {'0': '0.10', '1': '0.25', '2': '0.35', '3': '0.45'}  # index 0-3
+        z_value = float(Z[str(index)])
+        
+        self.sismo.Z = z_value
+        self.le_z_display.setText(f'{z_value:.3f}')
+        self._actualize_suelo()  # Recalcular S que depende de zona
+
+    def _actualize_suelo(self):
+        """Actualizar parámetros S, Tp, Tl según tipo de suelo"""
+        import pandas as pd
+        
+        S = pd.DataFrame({
+            'S0': [0.8] * 4,
+            'S1': [1.0] * 4,
+            'S2': [1.6, 1.2, 1.15, 1.05],
+            'S3': [2.0, 1.4, 1.2, 1.1]
+        })
+        Tp = {'S0': 0.3, 'S1': 0.4, 'S2': 0.6, 'S3': 1.0}
+        Tl = {'S0': 3.0, 'S1': 2.5, 'S2': 2.0, 'S3': 1.6}
+        
+        zona_index = self.cb_zona.currentIndex()
+        suelo = self.cb_suelo.currentText()
+        
+        s_value = S.loc[zona_index, suelo]
+        tp_value = Tp[suelo]
+        tl_value = Tl[suelo]
+        
+        # Actualizar modelo sísmico
+        self.sismo.S = s_value
+        self.sismo.Tp = tp_value
+        self.sismo.Tl = tl_value
+        
+        # Actualizar campos de display
+        self.le_s_display.setText(f'{s_value:.2f}')
+        self.le_tp_display.setText(f'{tp_value:.1f}')
+        self.le_tl_display.setText(f'{tl_value:.1f}')
+
+    def _actualize_categoria(self):
+        """Actualizar factor U según categoría"""
+        U = {'A1': 1.5, 'A2': 1.5, 'B': 1.3, 'C': 1.0, 'D': 1.0}
+        cat = self.cb_categoria.currentText()
+        u_value = U[cat]
+        
+        self.sismo.U = u_value
+        self.le_u_display.setText(f'{u_value:.1f}')
+        
+        # Habilitar edición para A1 y D (valores variables)
+        if cat in ['A1', 'D']:
+            self.le_u_display.setReadOnly(False)
+            self.le_u_display.setStyleSheet("QLineEdit { background-color: white; }")
+        else:
+            self.le_u_display.setReadOnly(True)
+            self.le_u_display.setStyleSheet("QLineEdit { background-color: #f0f0f0; }")
+
+    def _add_peru_parameter_display(self, layout, start_row):
+        """Agregar campos de parámetros específicos E.030 (solo lectura)"""
+        try:
+            current_row = start_row
+            
+            # Factor de suelo (editable)
+            self.label_soil_factor = QLabel("Factor Suelo:")
+            self.le_soil_factor = QLineEdit("1.0")
+            self.le_soil_factor.setToolTip("Factor de amplificación por tipo de suelo")
+            self.le_soil_factor.textChanged.connect(self._validate_soil_factor)
+            
+            layout.addWidget(self.label_soil_factor, current_row, 0)
+            layout.addWidget(self.le_soil_factor, current_row, 1)
+            
+            current_row += 1
+            
+            # Parámetros E.030 (solo lectura)
+            readonly_style = "QLineEdit { background-color: #f0f0f0; }"
+            
+            # Fila Z, U
+            self.label_z_display = QLabel("Z:")
+            self.le_z_display = QLineEdit()
+            self.le_z_display.setReadOnly(True)
+            self.le_z_display.setStyleSheet(readonly_style)
+            
+            self.label_u_display = QLabel("U:")
+            self.le_u_display = QLineEdit()
+            self.le_u_display.setReadOnly(True)
+            self.le_u_display.setStyleSheet(readonly_style)
+            
+            layout.addWidget(self.label_z_display, current_row, 0)
+            layout.addWidget(self.le_z_display, current_row, 1)
+            layout.addWidget(self.label_u_display, current_row, 2)
+            layout.addWidget(self.le_u_display, current_row, 3)
+            
+            current_row += 1
+            
+            # Fila S, Tp, Tl
+            self.label_s_display = QLabel("S:")
+            self.le_s_display = QLineEdit()
+            self.le_s_display.setReadOnly(True)
+            self.le_s_display.setStyleSheet(readonly_style)
+            
+            self.label_tp_display = QLabel("Tp (s):")
+            self.le_tp_display = QLineEdit()
+            self.le_tp_display.setReadOnly(True)
+            self.le_tp_display.setStyleSheet(readonly_style)
+            
+            self.label_tl_display = QLabel("Tl (s):")
+            self.le_tl_display = QLineEdit()
+            self.le_tl_display.setReadOnly(True)
+            self.le_tl_display.setStyleSheet(readonly_style)
+            
+            layout.addWidget(self.label_s_display, current_row, 0)
+            layout.addWidget(self.le_s_display, current_row, 1)
+            layout.addWidget(self.label_tp_display, current_row, 2)
+            layout.addWidget(self.le_tp_display, current_row, 3)
+            
+            current_row += 1
+            
+            layout.addWidget(self.label_tl_display, current_row, 0)
+            layout.addWidget(self.le_tl_display, current_row, 1)
+            
+        except Exception as e:
+            print(f"Error agregando parámetros Perú: {e}")
+            
+    def _validate_soil_factor(self):
+        """Validar factor de suelo"""
+        try:
+            value = float(self.le_soil_factor.text())
+            if 0.8 <= value <= 2.0:
+                self.le_soil_factor.setStyleSheet("")
+                self.sismo.soil_factor = value
+            else:
+                self.le_soil_factor.setStyleSheet("QLineEdit { border: 2px solid orange; }")
+        except ValueError:
+            self.le_soil_factor.setStyleSheet("QLineEdit { border: 2px solid red; }")
+
+    def _update_peru_parameters_display(self):
+        """Actualizar parámetros E.030 en campos de solo lectura"""
+        if hasattr(self, 'seismic_params_widget'):
+            params = self.seismic_params_widget.get_parameters()
+            
+            self.le_z_display.setText(f"{params.get('Z', 0.0):.3f}")
+            self.le_u_display.setText(f"{params.get('U', 0.0):.1f}")
+            self.le_s_display.setText(f"{params.get('S', 0.0):.2f}")
+            self.le_tp_display.setText(f"{params.get('Tp', 0.0):.2f}")
+            self.le_tl_display.setText(f"{params.get('Tl', 0.0):.2f}")
+        else:
+            # Valores directos del modelo
+            self.le_z_display.setText(f"{getattr(self.sismo, 'Z', 0.0):.3f}")
+            self.le_u_display.setText(f"{getattr(self.sismo, 'U', 0.0):.1f}")
+            self.le_s_display.setText(f"{getattr(self.sismo, 'S', 0.0):.2f}")
+            self.le_tp_display.setText(f"{getattr(self.sismo, 'Tp', 0.0):.2f}")
+            self.le_tl_display.setText(f"{getattr(self.sismo, 'Tl', 0.0):.2f}")
+        
     def _connect_peru_validations(self):
         """Conectar validaciones específicas para Perú"""
         if hasattr(self, 'seismic_params_widget'):
             self.seismic_params_widget.connect_param_changed(self._validate_peru_params)
-    
-    def _on_zone_changed(self, zone_text: str):
-        """Callback cuando cambia la zona sísmica"""
-        z_value = self.zonas_peru.get(zone_text, 0.25)
-        
-        # Actualizar parámetro Z en el widget si existe
-        if hasattr(self, 'seismic_params_widget'):
-            params = self.seismic_params_widget.get_parameters()
-            params['Z'] = z_value
-            self.seismic_params_widget.set_parameters(params)
-        
-        self.sismo.Z = z_value
-        self._validate_peru_params()
-    
-    def _on_category_changed(self, category_text: str):
-        """Callback cuando cambia la categoría"""
-        u_value = self.factores_uso.get(category_text, 1.0)
-        
-        # Actualizar parámetro U en el widget si existe
-        if hasattr(self, 'seismic_params_widget'):
-            params = self.seismic_params_widget.get_parameters()
-            params['U'] = u_value
-            self.seismic_params_widget.set_parameters(params)
-        
-        self.sismo.U = u_value
-        self._validate_peru_params()
     
     def _validate_peru_params(self):
         """Validar parámetros específicos de Perú usando validador centralizado"""
@@ -155,6 +301,9 @@ class PeruSeismicApp(AppBase):
             
             # Almacenar para gráficos
             self.sismo.Sa_max = max(Sa) * 1.2
+            
+            # Actualizar display de parámetros
+            self._update_peru_parameters_display()
             
             info = f"""✅ Espectro E.030 Calculado:
 

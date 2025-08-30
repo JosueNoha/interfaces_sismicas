@@ -515,3 +515,113 @@ class SeismicBase:
         ax.legend()
         
         return fig
+
+    def calculate_torsional_irregularity(self, SapModel, cases_x, cases_y):
+        """Calcular irregularidad torsional desde ETABS"""
+        try:
+            from core.utils.etabs_utils import set_units, get_table
+            
+            set_units(SapModel, 'Ton_mm_C')
+            
+            # Configurar casos para visualización
+            all_cases = cases_x + cases_y
+            SapModel.DatabaseTables.SetLoadCasesSelectedForDisplay(all_cases)
+            SapModel.DatabaseTables.SetLoadCombinationsSelectedForDisplay(all_cases)
+            
+            # Obtener datos de derivas por diafragma
+            success, drift_table = get_table(SapModel, 'Diaphragm Max Over Avg Drifts')
+            
+            if not success or drift_table is None:
+                return False
+            
+            # Procesar datos de torsión
+            torsion_results = self._process_torsion_data(drift_table, cases_x, cases_y)
+            
+            # Almacenar resultados
+            self.torsion_results = torsion_results
+            self.torsion_table_data = self._create_torsion_detail_table(drift_table, cases_x, cases_y, torsion_results)
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error calculando irregularidad torsional: {e}")
+            return False
+
+    def _process_torsion_data(self, drift_table, cases_x, cases_y):
+        """Procesar datos de torsión según norma"""
+        import numpy as np
+        
+        results = {
+            'delta_max_x': 0.0, 'delta_prom_x': 0.0, 'ratio_x': 0.0,
+            'delta_max_y': 0.0, 'delta_prom_y': 0.0, 'ratio_y': 0.0
+        }
+        
+        try:
+            # Filtrar datos por casos y dirección
+            drift_table['Max Drift'] = drift_table['Max Drift'].astype(float)
+            
+            # Procesar dirección X
+            x_data = drift_table[
+                (drift_table['OutputCase'].isin(cases_x)) & 
+                (drift_table['Item'].str.contains('X', case=False))
+            ]
+            
+            if not x_data.empty:
+                # Obtener deriva máxima y promedio por piso
+                max_drift_x = x_data.groupby('Story')['Max Drift'].max()
+                results['delta_max_x'] = max_drift_x.max() if len(max_drift_x) > 0 else 0.0
+                results['delta_prom_x'] = max_drift_x.mean() if len(max_drift_x) > 0 else 0.0
+                results['ratio_x'] = results['delta_max_x'] / results['delta_prom_x'] if results['delta_prom_x'] > 0 else 0.0
+            
+            # Procesar dirección Y
+            y_data = drift_table[
+                (drift_table['OutputCase'].isin(cases_y)) & 
+                (drift_table['Item'].str.contains('Y', case=False))
+            ]
+            
+            if not y_data.empty:
+                max_drift_y = y_data.groupby('Story')['Max Drift'].max()
+                results['delta_max_y'] = max_drift_y.max() if len(max_drift_y) > 0 else 0.0
+                results['delta_prom_y'] = max_drift_y.mean() if len(max_drift_y) > 0 else 0.0
+                results['ratio_y'] = results['delta_max_y'] / results['delta_prom_y'] if results['delta_prom_y'] > 0 else 0.0
+            
+        except Exception as e:
+            print(f"Error procesando datos de torsión: {e}")
+        
+        return results
+    
+    def _create_torsion_detail_table(self, drift_table, cases_x, cases_y, results):
+        """Crear tabla detallada de torsión para mostrar en UI"""
+        import pandas as pd
+        
+        try:
+            # Filtrar y procesar datos para tabla detallada
+            x_data = drift_table[
+                (drift_table['OutputCase'].isin(cases_x)) & 
+                (drift_table['Item'].str.contains('X', case=False))
+            ][['Story', 'Item', 'Max Drift']].copy()
+            x_data['Direction'] = 'X'
+            
+            y_data = drift_table[
+                (drift_table['OutputCase'].isin(cases_y)) & 
+                (drift_table['Item'].str.contains('Y', case=False))
+            ][['Story', 'Item', 'Max Drift']].copy()
+            y_data['Direction'] = 'Y'
+            
+            # Combinar datos
+            combined = pd.concat([x_data, y_data], ignore_index=True)
+            combined['Max Drift'] = combined['Max Drift'].astype(float)
+            
+            # Agregar cálculos de irregularidad
+            combined['Delta_max'] = combined.groupby('Direction')['Max Drift'].transform('max')
+            combined['Delta_prom'] = combined.groupby('Direction')['Max Drift'].transform('mean')
+            combined['Ratio'] = combined['Delta_max'] / combined['Delta_prom']
+            
+            # Renombrar columnas para display
+            combined.columns = ['Piso', 'Item', 'Deriva', 'Dirección', 'Δ_max', 'Δ_prom', 'Relación']
+            
+            return combined
+            
+        except Exception as e:
+            print(f"Error creando tabla detallada: {e}")
+            return None

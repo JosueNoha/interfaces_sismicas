@@ -126,7 +126,10 @@ class Ui_MainWindow(object):
         
         # Desplazamientos y derivas
         self._setup_displacement_section(scroll_layout)
-        
+
+        # Irregularidad torsional
+        self._setup_torsion_section(scroll_layout)
+
         # Configurar scroll
         scroll.setWidget(scroll_widget)
         scroll.setWidgetResizable(True)
@@ -311,6 +314,84 @@ class Ui_MainWindow(object):
         displ_layout.addWidget(self.le_max_drift, 1, 1)
         
         parent_layout.addWidget(self.group_displacements)
+
+    def _setup_torsion_section(self, parent_layout):
+        """Configurar sección de irregularidad torsional"""
+        self.group_torsion = QtWidgets.QGroupBox("Irregularidad Torsional")
+        torsion_layout = QtWidgets.QGridLayout(self.group_torsion)
+        
+        # Selector de combinación para torsión
+        self.label_torsion_combo = QtWidgets.QLabel("Combinación:")
+        self.cb_torsion_combo = QtWidgets.QComboBox()
+        self.cb_torsion_combo.addItems(["Dinámicas", "Estáticas", "Desplazamientos"])
+        self.cb_torsion_combo.setCurrentText("Dinámicas")
+        
+        torsion_layout.addWidget(self.label_torsion_combo, 0, 0)
+        torsion_layout.addWidget(self.cb_torsion_combo, 0, 1)
+        
+        # Botón calcular torsión
+        self.b_torsion = QtWidgets.QPushButton("Calcular Irregularidad Torsional")
+        torsion_layout.addWidget(self.b_torsion, 0, 2)
+        
+        # Resultados torsión por dirección
+        label_tor_x = QtWidgets.QLabel("Torsión X")
+        label_tor_x.setAlignment(QtCore.Qt.AlignCenter)
+        label_tor_x.setStyleSheet("font-weight: bold;")
+        label_tor_y = QtWidgets.QLabel("Torsión Y")
+        label_tor_y.setAlignment(QtCore.Qt.AlignCenter)
+        label_tor_y.setStyleSheet("font-weight: bold;")
+        
+        torsion_layout.addWidget(label_tor_x, 1, 1)
+        torsion_layout.addWidget(label_tor_y, 1, 2)
+        
+        # Campos de resultados
+        self.label_delta_max_x = QtWidgets.QLabel("Δ máx:")
+        self.le_delta_max_x = QtWidgets.QLineEdit()
+        self.le_delta_max_x.setReadOnly(True)
+        
+        self.label_delta_prom_x = QtWidgets.QLabel("Δ prom:")
+        self.le_delta_prom_x = QtWidgets.QLineEdit()
+        self.le_delta_prom_x.setReadOnly(True)
+        
+        self.label_relacion_x = QtWidgets.QLabel("Relación:")
+        self.le_relacion_x = QtWidgets.QLineEdit()
+        self.le_relacion_x.setReadOnly(True)
+        
+        torsion_layout.addWidget(self.label_delta_max_x, 2, 0)
+        torsion_layout.addWidget(self.le_delta_max_x, 2, 1)
+        
+        torsion_layout.addWidget(self.label_delta_prom_x, 3, 0)
+        torsion_layout.addWidget(self.le_delta_prom_x, 3, 1)
+        
+        torsion_layout.addWidget(self.label_relacion_x, 4, 0)
+        torsion_layout.addWidget(self.le_relacion_x, 4, 1)
+        
+        # Campos Y (misma estructura)
+        self.le_delta_max_y = QtWidgets.QLineEdit()
+        self.le_delta_max_y.setReadOnly(True)
+        self.le_delta_prom_y = QtWidgets.QLineEdit()
+        self.le_delta_prom_y.setReadOnly(True)
+        self.le_relacion_y = QtWidgets.QLineEdit()
+        self.le_relacion_y.setReadOnly(True)
+        
+        torsion_layout.addWidget(self.le_delta_max_y, 2, 2)
+        torsion_layout.addWidget(self.le_delta_prom_y, 3, 2)
+        torsion_layout.addWidget(self.le_relacion_y, 4, 2)
+
+        # Botón ver tabla detallada
+        self.b_torsion_table = QtWidgets.QPushButton("Ver Tabla Detallada")
+        torsion_layout.addWidget(self.b_torsion_table, 0, 3)
+
+        # Campo para límite configurable
+        self.label_torsion_limit = QtWidgets.QLabel("Límite:")
+        self.le_torsion_limit = QtWidgets.QLineEdit("1.30")
+        self.le_torsion_limit.setMaximumWidth(60)
+        self.le_torsion_limit.setToolTip("Límite para irregularidad torsional (1.30 normal, 1.50 extrema)")
+
+        torsion_layout.addWidget(self.label_torsion_limit, 0, 4)
+        torsion_layout.addWidget(self.le_torsion_limit, 0, 5)
+        
+        parent_layout.addWidget(self.group_torsion)
 
     def _setup_memory_tab(self):
         """Tab de memoria de cálculo"""

@@ -104,79 +104,17 @@ class SeismicBase:
             self.FEy = 0.0
 
     def calculate_shear_forces(self, SapModel):
-        """Calcular fuerzas cortantes desde ETABS"""
-        try:
-            from core.utils.etabs_utils import set_units, get_story_forces, get_story_data
-            import numpy as np
-            
-            # Configurar cargas según tipo
-            seism_loads = self.loads.seism_loads
-            dynamic_cases = [seism_loads.get('SDX', ''), seism_loads.get('SDY', '')]
-            static_cases = [seism_loads.get('SSX', ''), seism_loads.get('SSY', '')]
-            
-            # Configurar visualización en ETABS
-            all_cases = [c for c in dynamic_cases + static_cases if c]
-            if not all_cases:
-                return False, False
-                
-            SapModel.DatabaseTables.SetLoadCasesSelectedForDisplay(all_cases)
-            SapModel.DatabaseTables.SetLoadCombinationsSelectedForDisplay(all_cases)
-            
-            # Obtener datos
-            set_units(SapModel, 'Ton_m_C')
-            table = get_story_forces(SapModel)
-            stories = get_story_data(SapModel)
-
-            # Procesar tabla
-            table = table.merge(stories[['Story','Height']], on='Story',sort=False)
-            table['Direction'] = np.where(
-                table['OutputCase'].isin(dynamic_cases[:1] + static_cases[:1]), 'X', 'Y'
-            )
-            table['V'] = np.where(table['Direction']=='X', table['VX'], table['VY'])
-            table = table[['Story','Location','OutputCase','Height','V','Direction']]
-            
-            
-            # Convertir a float y tomar valor absoluto
-            table[['Height','V']] = table[['Height','V']].astype(float)
-            table['V'] = table['V'].abs()
-            
-            # Agrupar por ubicación
-            table = table.groupby(['Story','OutputCase','Location','Direction'], sort=False, as_index=False)[['Height','V']].max()
-            
-            # Separar dinámicos y estáticos
-            dynamic_table = table[table['OutputCase'].isin(dynamic_cases)].copy()
-            static_table = table[table['OutputCase'].isin(static_cases)].copy()
-                
-            # Almacenar ambos resultados
-            if not dynamic_table.empty:
-                self.shear_dynamic = dynamic_table
-                self.dynamic_shear_fig = self._create_shear_figure(dynamic_table, dynamic_cases[:1], dynamic_cases[1:], 'dynamic')
-            
-            if not static_table.empty:
-                self.shear_static = static_table
-                self.static_shear_fig = self._create_shear_figure(static_table, static_cases[:1], static_cases[1:], 'static')
-                
-                
-            # Guardar casos para poder regenerar gráficos con nuevas unidades
-            if not dynamic_table.empty:
-                self.shear_dynamic = dynamic_table
-                self.dynamic_shear_fig = self._create_shear_figure(dynamic_table, dynamic_cases[:1], dynamic_cases[1:], 'dynamic')
-                # Guardar casos para regeneración
-                self._saved_sx_dynamic = dynamic_cases[:1]
-                self._saved_sy_dynamic = dynamic_cases[1:]
-            
-            if not static_table.empty:
-                self.shear_static = static_table
-                self.static_shear_fig = self._create_shear_figure(static_table, static_cases[:1], static_cases[1:], 'static')
-                # Guardar casos para regeneración
-                self._saved_sx_static = static_cases[:1] 
-                self._saved_sy_static = static_cases[1:]
-                
-            return not dynamic_table.empty, not static_table.empty
-            
-        except Exception as e:
-            print(f"Error calculando cortantes: {e}")
-            return False
+        """Método manual para calcular cortantes - CONECTA SI ES NECESARIO"""
+        # Solo conectar si no está conectado
+        if not self.SapModel:
+            if not self._connect_etabs():
+                return
+        
+        # Usar método directo que no causa bucle
+        success = self._calculate_shear_forces_direct()
+        
+        if not success:
+            self.show_error("Error calculando cortantes")
 
     def _create_shear_figure(self, table, sx, sy, analysis_type):
         """Crear figura de cortantes siguiendo lógica original"""
@@ -734,3 +672,21 @@ class SeismicBase:
         ax.set_title(titles.get(country, titles['generic']))
         
         return fig
+    
+    def update_all_data(self):
+        """Actualizar todos los datos - Usar método completo"""
+        if not self.SapModel:
+            if not self._connect_etabs():
+                return
+        
+        try:
+            print("🔄 Actualizando todos los datos...")
+            
+            # Usar método completo que incluye modal y cortantes
+            self._auto_update_modal_analysis()
+            
+            print("✅ Actualización completa")
+            
+        except Exception as e:
+            print(f"Error actualizando datos: {e}")
+            self.show_warning(f"Error actualizando datos: {str(e)}")

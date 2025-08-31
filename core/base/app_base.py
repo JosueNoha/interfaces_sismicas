@@ -64,6 +64,9 @@ class AppBase(QMainWindow):
         self.ui.b_torsion_table.clicked.connect(self.show_torsion_table)
         self.ui.le_torsion_limit.textChanged.connect(self._validate_torsion_limit)
         
+        # Actualiza Factores de escala
+        self.ui.le_scale_factor.textChanged.connect(self._on_scale_factor_changed)
+        
         # Validación de masa participativa mínima
         self.ui.le_min_mass_participation.textChanged.connect(self._validate_min_mass_participation)
         
@@ -89,6 +92,29 @@ class AppBase(QMainWindow):
         if hasattr(self.ui, 'units_widget'):
             self.ui.units_widget.units_changed.connect(self._on_units_changed)
         
+    def _on_scale_factor_changed(self):
+        """Actualizar factores de escala cuando cambie el % mínimo"""
+        try:
+            # Solo recalcular si hay datos de cortantes disponibles
+            if (hasattr(self.sismo, 'data') and 
+                hasattr(self.sismo.data, 'Vdx') and self.sismo.data.Vdx > 0):
+                
+                # Obtener valores actuales de cortantes
+                base_values = {
+                    'vdx': getattr(self.sismo.data, 'Vdx', 0),
+                    'vdy': getattr(self.sismo.data, 'Vdy', 0),
+                    'vsx': getattr(self.sismo.data, 'Vsx', 0),
+                    'vsy': getattr(self.sismo.data, 'Vsy', 0)
+                }
+                
+                # Recalcular y actualizar solo los factores
+                self._update_scale_factors(base_values)
+                
+                print(f"✅ Factores recalculados por cambio en % mínimo")
+            
+        except Exception as e:
+            print(f"⚠️ Error recalculando factores: {e}")
+
 
     def _connect_combination_signals(self):
         """Conectar señales relacionadas con combinaciones"""
@@ -316,9 +342,9 @@ class AppBase(QMainWindow):
         }
 
     def _connect_etabs(self) -> bool:
-        """Conectar con ETABS y actualizar análisis modal automáticamente"""
+        """Conectar con ETABS"""
         from core.utils.etabs_utils import connect_to_etabs, validate_model_connection
-    
+        
         self.ETABSObject, self.SapModel = connect_to_etabs()
         
         if self.SapModel:
@@ -328,8 +354,8 @@ class AppBase(QMainWindow):
             if model_info['connected']:
                 print(f"✅ Conectado a ETABS: {model_info['model_name']}")
                 
-                # ACTUALIZACIÓN AUTOMÁTICA - sin mostrar mensaje
-                self._auto_update_modal_analysis()
+                # ACTUALIZACIÓN AUTOMÁTICA COMPLETA - Modal Y Cortantes
+                self._auto_update_complete()
                 return True
             else:
                 self.show_warning(f"Error en conexión: {model_info.get('error', 'Desconocido')}")
@@ -338,8 +364,8 @@ class AppBase(QMainWindow):
         
         return False
     
-    def _auto_update_modal_analysis(self):
-        """Actualizar automáticamente períodos, % masa Y CORTANTES - SIN MENSAJES"""
+    def _auto_update_complete(self):
+        """Actualización automática completa - Modal Y Cortantes (sin bucle)"""
         if not self.SapModel:
             return
             
@@ -352,21 +378,236 @@ class AppBase(QMainWindow):
             modal_data = get_modal_data(self.SapModel)
             
             if modal_data is not None and len(modal_data) > 0:
-                # Procesar y actualizar campos modales
                 modal_results = process_modal_data(modal_data)
                 if modal_results:
                     self._update_modal_fields(modal_results)
                     self.modal_table_data = modal_data
                     print("✅ Campos modales actualizados")
             
-            # 2. CORTANTES AUTOMÁTICOS
-            print("🔄 Calculando cortantes automáticamente...")
-            self._auto_calculate_shear_forces()
+            # 2. CORTANTES AUTOMÁTICOS (método directo sin reconectar)
+            self._auto_calculate_shear_forces_direct()
             
             print("✅ Actualización automática completa")
                 
         except Exception as e:
             print(f"Error en actualización automática: {e}")
+            
+    def _auto_calculate_shear_forces_direct(self):
+        """Calcular cortantes automáticamente SIN reconectar (evita bucle)"""
+        if not self.SapModel:
+            print("❌ No hay conexión con ETABS")
+            return False
+            
+        try:
+            print("🔄 Calculando cortantes automáticamente...")
+            
+            self.update_seismic_loads()
+            combinations = self.get_selected_combinations()
+            required = ['dynamic_x', 'dynamic_y', 'static_x', 'static_y']
+            missing = [k for k in required if not combinations[k].strip()]
+            
+            if missing:
+                print(f"⚠️ Faltan combinaciones para cálculo automático: {missing}")
+                return False
+            
+            # Configurar cargas sísmicas
+            self.sismo.loads.seism_loads = {
+                'SDX': combinations['dynamic_x'],
+                'SDY': combinations['dynamic_y'], 
+                'SSX': combinations['static_x'],
+                'SSY': combinations['static_y']
+            }
+            
+            print(f"📊 Cargas configuradas: {self.sismo.loads.seism_loads}")
+            
+            # Calcular cortantes usando el método de SeismicBase
+            success_dyn, success_sta = self.sismo.calculate_shear_forces(self.SapModel)
+            
+            if success_dyn and success_sta:
+                # Obtener y actualizar cortantes basales
+                self._update_shear_fields_from_data()
+                print("✅ Cortantes calculados y campos actualizados automáticamente")
+                return True
+            else:
+                print("❌ Error en cálculo de cortantes automático")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error en cálculo automático: {e}")
+            return False
+        
+    def _update_shear_fields_from_data(self):
+        """Actualizar campos de cortantes desde los datos calculados"""
+        try:
+            # Extraer cortantes basales
+            base_values = self._extract_base_shears()
+            
+            if base_values:
+                # Actualizar campos de cortantes
+                self.ui.le_vdx.setText(f"{base_values['vdx']:.2f}")
+                self.ui.le_vdy.setText(f"{base_values['vdy']:.2f}")  
+                self.ui.le_vsx.setText(f"{base_values['vsx']:.2f}")
+                self.ui.le_vsy.setText(f"{base_values['vsy']:.2f}")
+                
+                print(f"✅ Cortantes actualizados: VdX={base_values['vdx']:.2f}, VdY={base_values['vdy']:.2f}, VsX={base_values['vsx']:.2f}, VsY={base_values['vsy']:.2f}")
+                
+                # Calcular y actualizar factores de escala
+                self._update_scale_factors(base_values)
+                
+                # Almacenar en modelo
+                self.sismo.data.Vdx = base_values['vdx']
+                self.sismo.data.Vdy = base_values['vdy']
+                self.sismo.data.Vsx = base_values['vsx']
+                self.sismo.data.Vsy = base_values['vsy']
+                
+                return True
+            else:
+                print("❌ No se pudieron extraer cortantes basales")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error actualizando campos: {e}")
+            return False
+        
+    def _update_scale_factors(self, base_values):
+        """Actualizar factores de escala y almacenar"""
+        try:
+            # Calcular factores
+            scale_factors = self._calculate_scale_factors(base_values)
+            
+            # Actualizar campos UI
+            self.ui.le_fx.setText(f"{scale_factors['fx']:.3f}")
+            self.ui.le_fy.setText(f"{scale_factors['fy']:.3f}")
+            
+            # Almacenar en modelo
+            self.sismo.data.FEx = scale_factors['fx']
+            self.sismo.data.FEy = scale_factors['fy']
+            
+            print(f"✅ Factores actualizados: FX={scale_factors['fx']:.3f}, FY={scale_factors['fy']:.3f}")
+            
+        except Exception as e:
+            print(f"❌ Error actualizando factores: {e}")
+    
+    def _auto_update_modal_only(self):
+        """Actualizar SOLO análisis modal automáticamente - Sin cortantes"""
+        if not self.SapModel:
+            return
+            
+        from core.utils.etabs_utils import get_modal_data, process_modal_data
+        
+        try:
+            print("🔄 Actualizando análisis modal automáticamente...")
+            
+            # SOLO ANÁLISIS MODAL
+            modal_data = get_modal_data(self.SapModel)
+            
+            if modal_data is not None and len(modal_data) > 0:
+                # Procesar y actualizar campos modales
+                modal_results = process_modal_data(modal_data)
+                if modal_results:
+                    self._update_modal_fields(modal_results)
+                    self.modal_table_data = modal_data
+                    print("✅ Campos modales actualizados automáticamente")
+            else:
+                print("⚠️ No hay datos modales disponibles")
+                
+        except Exception as e:
+            print(f"Error en actualización modal: {e}")
+    
+    def _auto_update_modal_analysis(self):
+        """Actualizar análisis modal Y cortantes - SOLO para botón actualizar"""
+        if not self.SapModel:
+            return
+            
+        from core.utils.etabs_utils import get_modal_data, process_modal_data
+        
+        try:
+            print("🔄 Actualizando análisis modal y cortantes...")
+            
+            # 1. ANÁLISIS MODAL
+            modal_data = get_modal_data(self.SapModel)
+            
+            if modal_data is not None and len(modal_data) > 0:
+                modal_results = process_modal_data(modal_data)
+                if modal_results:
+                    self._update_modal_fields(modal_results)
+                    self.modal_table_data = modal_data
+                    print("✅ Campos modales actualizados")
+            
+            # 2. CORTANTES - Solo si se llama explícitamente
+            print("🔄 Calculando cortantes...")
+            self._calculate_shear_forces_direct()
+            
+            print("✅ Actualización completa")
+                
+        except Exception as e:
+            print(f"Error en actualización completa: {e}")
+            
+    def _calculate_shear_forces_direct(self):
+        """Calcular cortantes directamente SIN verificar conexión para evitar bucle"""
+        if not self.SapModel:
+            print("❌ No hay conexión con ETABS")
+            return False
+            
+        try:
+            print("🔄 Calculando cortantes directamente...")
+            
+            self.update_seismic_loads()
+            combinations = self.get_selected_combinations()
+            required = ['dynamic_x', 'dynamic_y', 'static_x', 'static_y']
+            missing = [k for k in required if not combinations[k].strip()]
+            
+            if missing:
+                print(f"⚠️ Faltan combinaciones: {missing}")
+                return False
+            
+            # Configurar cargas sísmicas
+            self.sismo.loads.seism_loads = {
+                'SDX': combinations['dynamic_x'],
+                'SDY': combinations['dynamic_y'], 
+                'SSX': combinations['static_x'],
+                'SSY': combinations['static_y']
+            }
+            
+            # Calcular cortantes usando el método de SeismicBase
+            success_dyn, success_sta = self.sismo.calculate_shear_forces(self.SapModel)
+            
+            if success_dyn and success_sta:
+                # Obtener cortantes basales
+                base_values = self._extract_base_shears()
+                
+                if base_values:
+                    # Actualizar UI
+                    self.ui.le_vdx.setText(f"{base_values['vdx']:.2f}")
+                    self.ui.le_vdy.setText(f"{base_values['vdy']:.2f}")  
+                    self.ui.le_vsx.setText(f"{base_values['vsx']:.2f}")
+                    self.ui.le_vsy.setText(f"{base_values['vsy']:.2f}")
+                    
+                    # Calcular factores de escala
+                    scale_factors = self._calculate_scale_factors(base_values)
+                    self.ui.le_fx.setText(f"{scale_factors['fx']:.3f}")
+                    self.ui.le_fy.setText(f"{scale_factors['fy']:.3f}")
+                    
+                    # Almacenar en modelo
+                    self.sismo.data.Vdx = base_values['vdx']
+                    self.sismo.data.Vdy = base_values['vdy']
+                    self.sismo.data.Vsx = base_values['vsx']
+                    self.sismo.data.Vsy = base_values['vsy']
+                    self.sismo.data.FEx = scale_factors['fx']
+                    self.sismo.data.FEy = scale_factors['fy']
+
+                    print("✅ Cortantes calculados y actualizados")
+                    return True
+                else:
+                    print("❌ Error extrayendo cortantes basales")
+                    return False
+            else:
+                print("❌ Error en cálculo de cortantes")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error en cálculo directo: {e}")
+            return False
             
     def _update_modal_fields(self, results):
         """Actualizar campos de período y masa participativa"""
@@ -397,84 +638,19 @@ class AppBase(QMainWindow):
             print(f"❌ Error actualizando campos: {e}")
             
     def _auto_calculate_shear_forces(self):
-        """Calcular cortantes automáticamente sin botón"""
+        """Calcular cortantes automáticamente - CORREGIDO"""
         if not self.SapModel:
             print("❌ No hay conexión con ETABS")
             return False
             
         try:
-            print("🔄 Iniciando cálculo automático de cortantes...")
+            print("🔄 Ejecutando cálculo automático de cortantes...")
             
-            # 1. Actualizar cargas sísmicas
-            self.update_seismic_loads()
-            combinations = self.get_selected_combinations()
-            print(f"📋 Combinaciones obtenidas: {combinations}")
+            # USAR EL MÉTODO EXISTENTE QUE YA FUNCIONA Y NO NECESITA _generate_shear_plots()
+            self.calculate_shear_forces()  
             
-            # 2. Verificar combinaciones requeridas
-            required = ['dynamic_x', 'dynamic_y', 'static_x', 'static_y']
-            missing = [k for k in required if not combinations[k].strip()]
-            
-            if missing:
-                print(f"⚠️ Faltan combinaciones: {missing}")
-                self.show_warning(f"Faltan combinaciones para cortantes: {', '.join(missing)}")
-                return False
-            
-            print("✅ Todas las combinaciones disponibles")
-            
-            # 3. Configurar cargas sísmicas en el modelo
-            seismic_loads = {
-                'SDX': combinations['dynamic_x'],
-                'SDY': combinations['dynamic_y'], 
-                'SSX': combinations['static_x'],
-                'SSY': combinations['static_y']
-            }
-            self.sismo.loads.seism_loads = seismic_loads
-            print(f"📊 Cargas configuradas: {seismic_loads}")
-            
-            # 4. Ejecutar cálculo de cortantes
-            print("🔄 Ejecutando cálculo en ETABS...")
-            success_dyn, success_sta = self.sismo.calculate_shear_forces(self.SapModel)
-            print(f"📊 Resultado cálculo - Dinámico: {success_dyn}, Estático: {success_sta}")
-            
-            if success_dyn and success_sta:
-                # 5. Extraer cortantes basales
-                print("🔄 Extrayendo cortantes basales...")
-                base_values = self._extract_base_shears()
-                print(f"📊 Cortantes extraídos: {base_values}")
-                
-                if base_values:
-                    # 6. Actualizar campos en UI
-                    print("🔄 Actualizando campos UI...")
-                    self._update_shear_fields(base_values)
-                    
-                    # 7. Calcular factores de escala
-                    print("🔄 Calculando factores de escala...")
-                    scale_factors = self._calculate_scale_factors(base_values)
-                    print(f"📊 Factores calculados: {scale_factors}")
-                    
-                    # Actualizar campos de factores
-                    if hasattr(self.ui, 'le_fx'):
-                        self.ui.le_fx.setText(f"{scale_factors['fx']:.3f}")
-                        print(f"✅ le_fx = {scale_factors['fx']:.3f}")
-                    if hasattr(self.ui, 'le_fy'):
-                        self.ui.le_fy.setText(f"{scale_factors['fy']:.3f}")
-                        print(f"✅ le_fy = {scale_factors['fy']:.3f}")
-                    
-                    # 8. Almacenar en modelo
-                    self._store_shear_values(base_values, scale_factors)
-                    
-                    # 9. Generar gráficos
-                    print("🔄 Generando gráficos...")
-                    self._generate_shear_plots()
-                    
-                    print("✅ CORTANTES CALCULADOS Y ACTUALIZADOS CORRECTAMENTE")
-                    return True
-                else:
-                    print("❌ Error: No se pudieron extraer cortantes basales")
-                    return False
-            else:
-                print("❌ Error: Fallo en cálculo de cortantes en ETABS")
-                return False
+            print("✅ Cortantes calculados usando método existente")
+            return True
                 
         except Exception as e:
             print(f"❌ Error en cálculo automático de cortantes: {e}")
@@ -528,73 +704,16 @@ class AppBase(QMainWindow):
 
     # Mantener método existente para compatibilidad, pero cambiar a privado
     def calculate_shear_forces(self):
-        """Calcular cortantes - SIN MENSAJE INFO FINAL"""
-        if not self._connect_etabs():
-            return
-        
-        try:
-            print("🔄 Ejecutando cálculo de cortantes...")
-            
-            self.update_seismic_loads()
-            combinations = self.get_selected_combinations()
-            required = ['dynamic_x', 'dynamic_y', 'static_x', 'static_y']
-            missing = [k for k in required if not combinations[k].strip()]
-            
-            if missing:
-                print(f"⚠️ Faltan combinaciones: {missing}")
-                self.show_warning(f"Faltan combinaciones: {', '.join(missing)}")
+        """Método manual para calcular cortantes - MANTENER para compatibilidad"""
+        # Solo conectar si no está conectado
+        if not self.SapModel:
+            if not self._connect_etabs():
                 return
-            
-            # Configurar cargas sísmicas
-            self.sismo.loads.seism_loads = {
-                'SDX': combinations['dynamic_x'],
-                'SDY': combinations['dynamic_y'], 
-                'SSX': combinations['static_x'],
-                'SSY': combinations['static_y']
-            }
-            
-            # Calcular cortantes usando el método de SeismicBase
-            success_dyn, success_sta = self.sismo.calculate_shear_forces(self.SapModel)
-            
-            if success_dyn and success_sta:
-                # Obtener cortantes basales
-                base_values = self._extract_base_shears()
-                
-                if base_values:
-                    # Actualizar UI
-                    self.ui.le_vdx.setText(f"{base_values['vdx']:.2f}")
-                    self.ui.le_vdy.setText(f"{base_values['vdy']:.2f}")  
-                    self.ui.le_vsx.setText(f"{base_values['vsx']:.2f}")
-                    self.ui.le_vsy.setText(f"{base_values['vsy']:.2f}")
-                    
-                    # Calcular factores de escala
-                    scale_factors = self._calculate_scale_factors(base_values)
-                    self.ui.le_fx.setText(f"{scale_factors['fx']:.3f}")
-                    self.ui.le_fy.setText(f"{scale_factors['fy']:.3f}")
-                    
-                    # Almacenar en modelo
-                    self.sismo.data.Vdx = base_values['vdx']
-                    self.sismo.data.Vdy = base_values['vdy']
-                    self.sismo.data.Vsx = base_values['vsx']
-                    self.sismo.data.Vsy = base_values['vsy']
-                    self.sismo.data.FEx = scale_factors['fx']
-                    self.sismo.data.FEy = scale_factors['fy']
-
-                    # Crear gráficos
-                    self._generate_shear_plots()
-                    
-                    # ELIMINADO: self.show_info("✅ Cortantes, factores y gráficos generados")
-                    print("✅ Cortantes calculados y campos actualizados")
-                else:
-                    print("❌ Error extrayendo cortantes basales")
-                    self.show_error("Error extrayendo cortantes basales")
-            else:
-                print("❌ Error en cálculo de cortantes")
+        else:
+            # Si ya está conectado, calcular directamente
+            success = self._auto_calculate_shear_forces_direct()
+            if not success:
                 self.show_error("Error calculando cortantes")
-                
-        except Exception as e:
-            print(f"❌ Error: {e}")
-            self.show_error(f"Error: {e}")
 
     def _init_default_values(self):
         """Inicializar valores por defecto"""
@@ -1732,22 +1851,15 @@ class AppBase(QMainWindow):
         )
 
     def update_all_data(self):
-        """Actualizar todos los datos automáticamente - INCLUYENDO CORTANTES"""
-        if not self._connect_etabs():
-            return
+        """Actualizar todos los datos"""
+        if not self.SapModel:
+            if not self._connect_etabs():
+                return
+        else:
+            # Si ya está conectado, actualizar directamente
+            self._auto_update_complete()
         
-        try:
-            print("🔄 Actualizando todos los datos...")
-            
-            # Análisis modal y cortantes (automático al conectar)
-            self._auto_update_modal_analysis()
-            
-            print("✅ Actualización completa")
-            # ELIMINADO: self.show_info("✅ Todos los datos actualizados automáticamente")
-            
-        except Exception as e:
-            print(f"Error actualizando datos: {e}")
-            self.show_warning(f"Error actualizando datos: {str(e)}")
+        print("✅ Actualización completa terminada")
 
     def _get_required_seismic_params(self) -> list:
         """Obtener lista de parámetros sísmicos requeridos según el país"""

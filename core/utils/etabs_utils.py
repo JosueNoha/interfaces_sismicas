@@ -432,38 +432,65 @@ def check_analysis_complete(SapModel):
 
 def process_modal_data(modal_data):
     """
-    Procesar datos modales para obtener períodos fundamentales
+    Procesar datos modales mejorado con información completa
     
     Returns:
-        dict: Períodos fundamentales y masas participativas
+        dict: Períodos fundamentales, masas participativas y números de modo
     """
     if modal_data is None or len(modal_data) == 0:
         return None
     
     try:
-        # Buscar períodos fundamentales
-        # Primer modo con participación significativa en X
-        mode_x = modal_data[modal_data.UX == max(modal_data.UX)].index[0]
-        Tx = modal_data['Period'][mode_x] if not modal_data.empty else None
+        # Verificar columnas requeridas
+        required_cols = ['UX', 'UY', 'Period', 'SumUX', 'SumUY']
+        missing_cols = [col for col in required_cols if col not in modal_data.columns]
+        if missing_cols:
+            print(f"⚠️ Columnas faltantes en datos modales: {missing_cols}")
+            return None
         
-        # Primer modo con participación significativa en Y  
-        mode_y = modal_data[modal_data.UY == max(modal_data.UY)].index[0]
-        Ty = modal_data['Period'][mode_y] if not modal_data.empty else None
+        # Buscar períodos fundamentales (mayor participación modal)
+        # Filtrar solo modos con participación significativa (>1%)
+        significant_modes_x = modal_data[modal_data['UX'] > 0.01]
+        significant_modes_y = modal_data[modal_data['UY'] > 0.01]
         
-        # Masas participativas totales
-        sum_ux = modal_data['SumUX'].max()*100
-        sum_uy = modal_data['SumUY'].max()*100
+        if len(significant_modes_x) > 0:
+            mode_x_idx = significant_modes_x['UX'].idxmax()
+            Tx = modal_data.loc[mode_x_idx, 'Period']
+            mode_x_num = mode_x_idx + 1  # Base 1
+        else:
+            mode_x_idx = modal_data['UX'].idxmax()
+            Tx = modal_data.loc[mode_x_idx, 'Period']
+            mode_x_num = mode_x_idx + 1
+        
+        if len(significant_modes_y) > 0:
+            mode_y_idx = significant_modes_y['UY'].idxmax()
+            Ty = modal_data.loc[mode_y_idx, 'Period']
+            mode_y_num = mode_y_idx + 1  # Base 1
+        else:
+            mode_y_idx = modal_data['UY'].idxmax()
+            Ty = modal_data.loc[mode_y_idx, 'Period']
+            mode_y_num = mode_y_idx + 1
+        
+        # Masas participativas acumuladas máximas (%)
+        sum_ux = modal_data['SumUX'].max() * 100
+        sum_uy = modal_data['SumUY'].max() * 100
         
         return {
             'Tx': Tx,
             'Ty': Ty,
             'total_mass_x': sum_ux,
             'total_mass_y': sum_uy,
-            'num_modes': len(modal_data)
+            'num_modes': len(modal_data),
+            'mode_x_number': mode_x_num,
+            'mode_y_number': mode_y_num,
+            'dominant_periods': {
+                'x': {'period': Tx, 'mode': mode_x_num, 'participation': modal_data.loc[mode_x_idx, 'UX'] * 100},
+                'y': {'period': Ty, 'mode': mode_y_num, 'participation': modal_data.loc[mode_y_idx, 'UY'] * 100}
+            }
         }
         
     except Exception as e:
-        print(f"Error procesando datos modales: {e}")
+        print(f"❌ Error procesando datos modales: {e}")
         return None
 
 

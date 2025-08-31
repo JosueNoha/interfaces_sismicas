@@ -47,8 +47,7 @@ class AppBase(QMainWindow):
     def _connect_common_signals(self):
         """Conectar señales comunes"""
         # Botones de análisis sísmico
-        self.ui.b_modal.clicked.connect(self.show_modal_table)
-        self.ui.b_cortantes.clicked.connect(self.calculate_shear_forces)
+        self.ui.b_modal.clicked.connect(self.show_modal_data) 
         self.ui.b_desplazamiento.clicked.connect(self.calculate_displacements)
         self.ui.b_derivas.clicked.connect(self.calculate_drifts)
         self.ui.b_actualizar.clicked.connect(self.update_all_data)
@@ -317,13 +316,240 @@ class AppBase(QMainWindow):
         }
 
     def _connect_etabs(self) -> bool:
-        """Conectar con ETABS si no está conectado"""
-        if self.SapModel is None:
-            self.ETABSObject, self.SapModel = connect_to_etabs()
-            if self.SapModel is None:
-                # No mostrar warning en actualización automática
+        """Conectar con ETABS y actualizar análisis modal automáticamente"""
+        from core.utils.etabs_utils import connect_to_etabs, validate_model_connection
+    
+        self.ETABSObject, self.SapModel = connect_to_etabs()
+        
+        if self.SapModel:
+            # Validar conexión
+            model_info = validate_model_connection(self.SapModel)
+            
+            if model_info['connected']:
+                # Verificar que existan los campos necesarios en UI
+                required_fields = ['le_vdx', 'le_vdy', 'le_vsx', 'le_vsy', 'le_fx', 'le_fy']
+                missing_fields = [field for field in required_fields if not hasattr(self.ui, field)]
+                
+                if missing_fields:
+                    print(f"⚠️ Campos faltantes en UI: {missing_fields}")
+                
+                self.show_info(f"✅ Conectado a ETABS: {model_info['model_name']}")
+                
+                # ACTUALIZACIÓN AUTOMÁTICA
+                self._auto_update_modal_analysis()
+                return True
+            else:
+                self.show_warning(f"Error en conexión: {model_info.get('error', 'Desconocido')}")
+        else:
+            self.show_warning("No se pudo conectar con ETABS. Verifique que esté abierto.")
+        
+        return False
+    
+    def _auto_update_modal_analysis(self):
+        """Actualizar automáticamente períodos, % masa Y CORTANTES al conectarse"""
+        if not self.SapModel:
+            return
+            
+        from core.utils.etabs_utils import get_modal_data, process_modal_data
+        
+        try:
+            print("🔄 Actualizando análisis modal y cortantes automáticamente...")
+            
+            # 1. ANÁLISIS MODAL
+            modal_data = get_modal_data(self.SapModel)
+            
+            if modal_data is not None and len(modal_data) > 0:
+                # Procesar y actualizar campos modales
+                results = process_modal_data(modal_data)
+                if results:
+                    self._update_modal_fields(results)
+                    self.modal_table_data = modal_data
+            
+            # 2. CORTANTES AUTOMÁTICOS
+            self._auto_calculate_shear_forces()
+            
+            # Mensaje de confirmación completo
+            if results:
+                info_msg = (f"📊 ACTUALIZACIÓN AUTOMÁTICA COMPLETA:\n\n"
+                        f"🔹 ANÁLISIS MODAL:\n"
+                        f"   Tx = {results['Tx']:.4f} s | Ty = {results['Ty']:.4f} s\n"
+                        f"   Masa X: {results['total_mass_x']:.1f}% | Masa Y: {results['total_mass_y']:.1f}%\n\n"
+                        f"🔹 CORTANTES BASALES:\n"
+                        f"   Dinámicos y estáticos calculados automáticamente\n"
+                        f"   Factores de escala actualizados\n\n"
+                        f"📈 {results['num_modes']} modos analizados")
+                
+                self.show_info(info_msg)
+            else:
+                self.show_warning("⚠️ Análisis modal actualizado, verificar cortantes")
+                
+        except Exception as e:
+            print(f"Error en actualización automática: {e}")
+            self.show_warning(f"Error en actualización automática: {str(e)}")
+            
+    def _update_modal_fields(self, results):
+        """Actualizar campos de período y masa participativa"""
+        try:
+            # Actualizar períodos fundamentales
+            if hasattr(self.ui, 'le_tx'):
+                self.ui.le_tx.setText(f"{results['Tx']:.4f}" if results['Tx'] else "N/A")
+            if hasattr(self.ui, 'le_ty'):
+                self.ui.le_ty.setText(f"{results['Ty']:.4f}" if results['Ty'] else "N/A")
+            
+            # Actualizar masa participativa
+            if hasattr(self.ui, 'le_participacion_x'):
+                self.ui.le_participacion_x.setText(f"{results['total_mass_x']:.1f}")
+            if hasattr(self.ui, 'le_participacion_y'):
+                self.ui.le_participacion_y.setText(f"{results['total_mass_y']:.1f}")
+            
+            # Validación visual del cumplimiento de masa
+            min_mass = self._get_min_mass_participation()
+            cumple_x = results['total_mass_x'] >= min_mass
+            cumple_y = results['total_mass_y'] >= min_mass
+            self._apply_mass_validation(cumple_x, cumple_y)
+            
+            print(f"✅ Campos actualizados - Tx: {results['Tx']:.4f}s, Ty: {results['Ty']:.4f}s")
+            
+        except AttributeError as e:
+            print(f"⚠️ Campo no encontrado en UI: {e}")
+        except Exception as e:
+            print(f"❌ Error actualizando campos: {e}")
+            
+    def _auto_calculate_shear_forces(self):
+        """Calcular cortantes automáticamente sin botón"""
+        if not self.SapModel:
+            print("❌ No hay conexión con ETABS")
+            return False
+            
+        try:
+            print("🔄 Iniciando cálculo automático de cortantes...")
+            
+            # 1. Actualizar cargas sísmicas
+            self.update_seismic_loads()
+            combinations = self.get_selected_combinations()
+            print(f"📋 Combinaciones obtenidas: {combinations}")
+            
+            # 2. Verificar combinaciones requeridas
+            required = ['dynamic_x', 'dynamic_y', 'static_x', 'static_y']
+            missing = [k for k in required if not combinations[k].strip()]
+            
+            if missing:
+                print(f"⚠️ Faltan combinaciones: {missing}")
+                self.show_warning(f"Faltan combinaciones para cortantes: {', '.join(missing)}")
                 return False
-        return True
+            
+            print("✅ Todas las combinaciones disponibles")
+            
+            # 3. Configurar cargas sísmicas en el modelo
+            seismic_loads = {
+                'SDX': combinations['dynamic_x'],
+                'SDY': combinations['dynamic_y'], 
+                'SSX': combinations['static_x'],
+                'SSY': combinations['static_y']
+            }
+            self.sismo.loads.seism_loads = seismic_loads
+            print(f"📊 Cargas configuradas: {seismic_loads}")
+            
+            # 4. Ejecutar cálculo de cortantes
+            print("🔄 Ejecutando cálculo en ETABS...")
+            success_dyn, success_sta = self.sismo.calculate_shear_forces(self.SapModel)
+            print(f"📊 Resultado cálculo - Dinámico: {success_dyn}, Estático: {success_sta}")
+            
+            if success_dyn and success_sta:
+                # 5. Extraer cortantes basales
+                print("🔄 Extrayendo cortantes basales...")
+                base_values = self._extract_base_shears()
+                print(f"📊 Cortantes extraídos: {base_values}")
+                
+                if base_values:
+                    # 6. Actualizar campos en UI
+                    print("🔄 Actualizando campos UI...")
+                    self._update_shear_fields(base_values)
+                    
+                    # 7. Calcular factores de escala
+                    print("🔄 Calculando factores de escala...")
+                    scale_factors = self._calculate_scale_factors(base_values)
+                    print(f"📊 Factores calculados: {scale_factors}")
+                    
+                    # Actualizar campos de factores
+                    if hasattr(self.ui, 'le_fx'):
+                        self.ui.le_fx.setText(f"{scale_factors['fx']:.3f}")
+                        print(f"✅ le_fx = {scale_factors['fx']:.3f}")
+                    if hasattr(self.ui, 'le_fy'):
+                        self.ui.le_fy.setText(f"{scale_factors['fy']:.3f}")
+                        print(f"✅ le_fy = {scale_factors['fy']:.3f}")
+                    
+                    # 8. Almacenar en modelo
+                    self._store_shear_values(base_values, scale_factors)
+                    
+                    # 9. Generar gráficos
+                    print("🔄 Generando gráficos...")
+                    self._generate_shear_plots()
+                    
+                    print("✅ CORTANTES CALCULADOS Y ACTUALIZADOS CORRECTAMENTE")
+                    return True
+                else:
+                    print("❌ Error: No se pudieron extraer cortantes basales")
+                    return False
+            else:
+                print("❌ Error: Fallo en cálculo de cortantes en ETABS")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error en cálculo automático de cortantes: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def _update_shear_fields(self, base_values):
+        """Actualizar campos de cortantes en la UI - CORREGIDO"""
+        try:
+            print(f"🔄 Actualizando campos con valores: {base_values}")
+            
+            # Verificar que existan los campos en la UI
+            fields_to_update = [
+                ('le_vdx', base_values['vdx'], 2),
+                ('le_vdy', base_values['vdy'], 2), 
+                ('le_vsx', base_values['vsx'], 2),
+                ('le_vsy', base_values['vsy'], 2)
+            ]
+            
+            for field_name, value, decimals in fields_to_update:
+                if hasattr(self.ui, field_name):
+                    field = getattr(self.ui, field_name)
+                    formatted_value = f"{value:.{decimals}f}"
+                    field.setText(formatted_value)
+                    print(f"✅ {field_name} = {formatted_value}")
+                else:
+                    print(f"⚠️ Campo {field_name} no existe en UI")
+            
+            print("✅ Campos de cortantes actualizados correctamente")
+            
+        except Exception as e:
+            print(f"❌ Error actualizando campos de cortantes: {e}")
+            import traceback
+            traceback.print_exc()
+        
+    def _store_shear_values(self, base_values, scale_factors):
+        """Almacenar valores de cortantes en el modelo sísmico"""
+        try:
+            self.sismo.data.Vdx = base_values['vdx']
+            self.sismo.data.Vdy = base_values['vdy']
+            self.sismo.data.Vsx = base_values['vsx']
+            self.sismo.data.Vsy = base_values['vsy']
+            self.sismo.data.FEx = scale_factors['fx']
+            self.sismo.data.FEy = scale_factors['fy']
+            
+            print("✅ Valores almacenados en modelo sísmico")
+            
+        except Exception as e:
+            print(f"❌ Error almacenando valores: {e}")
+
+    # Mantener método existente para compatibilidad, pero cambiar a privado
+    def calculate_shear_forces(self):
+        """Método de compatibilidad - redirige a cálculo automático"""
+        print("⚠️ calculate_shear_forces() llamado manualmente - usando cálculo automático")
+        return self._auto_calculate_shear_forces()
 
     def _init_default_values(self):
         """Inicializar valores por defecto"""
@@ -854,35 +1080,94 @@ class AppBase(QMainWindow):
     def _extract_base_shears(self):
         """Extraer cortantes basales de los datos calculados"""
         try:
-            # Obtener primer piso (base) de cada análisis
+            print("🔍 Verificando datos de cortantes disponibles...")
+            
+            # Verificar que existan los datos
+            if not hasattr(self.sismo, 'shear_dynamic') or not hasattr(self.sismo, 'shear_static'):
+                print("❌ No hay datos de cortantes en self.sismo")
+                return None
+            
+            # Verificar que no estén vacíos
+            if self.sismo.shear_dynamic is None or self.sismo.shear_static is None:
+                print("❌ Datos de cortantes son None")
+                return None
+                
+            if len(self.sismo.shear_dynamic) == 0 or len(self.sismo.shear_static) == 0:
+                print("❌ DataFrames de cortantes están vacíos")
+                return None
+            
+            print(f"📊 Cortantes dinámicos: {len(self.sismo.shear_dynamic)} filas")
+            print(f"📊 Cortantes estáticos: {len(self.sismo.shear_static)} filas")
+            
+            # Obtener datos de base
             dyn_base = self.sismo.shear_dynamic[
                 self.sismo.shear_dynamic['Location'] == 'Bottom'
             ].copy()
+            
             sta_base = self.sismo.shear_static[
                 self.sismo.shear_static['Location'] == 'Bottom'  
             ].copy()
             
-            # Extraer valores por dirección
-            vdx = dyn_base[dyn_base['Direction'] == 'X']['V'].iloc[0] if len(dyn_base[dyn_base['Direction'] == 'X']) > 0 else 0
-            vdy = dyn_base[dyn_base['Direction'] == 'Y']['V'].iloc[0] if len(dyn_base[dyn_base['Direction'] == 'Y']) > 0 else 0
-            vsx = sta_base[sta_base['Direction'] == 'X']['V'].iloc[0] if len(sta_base[sta_base['Direction'] == 'X']) > 0 else 0
-            vsy = sta_base[sta_base['Direction'] == 'Y']['V'].iloc[0] if len(sta_base[sta_base['Direction'] == 'Y']) > 0 else 0
+            print(f"📊 Dinámico base: {len(dyn_base)} filas")
+            print(f"📊 Estático base: {len(sta_base)} filas")
             
-            return {'vdx': vdx, 'vdy': vdy, 'vsx': vsx, 'vsy': vsy}
-        except:
+            if len(dyn_base) == 0 or len(sta_base) == 0:
+                print("❌ No hay datos de base disponibles")
+                return None
+            
+            # Extraer valores por dirección
+            def get_value_by_direction(df, direction):
+                filtered = df[df['Direction'] == direction]
+                if len(filtered) > 0:
+                    return abs(filtered['V'].iloc[0])  # Valor absoluto por si acaso
+                return 0.0
+            
+            vdx = get_value_by_direction(dyn_base, 'X')
+            vdy = get_value_by_direction(dyn_base, 'Y') 
+            vsx = get_value_by_direction(sta_base, 'X')
+            vsy = get_value_by_direction(sta_base, 'Y')
+            
+            base_values = {'vdx': vdx, 'vdy': vdy, 'vsx': vsx, 'vsy': vsy}
+            print(f"✅ Cortantes basales extraídos: {base_values}")
+            
+            return base_values
+            
+        except Exception as e:
+            print(f"❌ Error extrayendo cortantes basales: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
     def _calculate_scale_factors(self, base_values):
         """Calcular factores de escala basados en porcentaje mínimo"""
         try:
-            min_percent = float(self.ui.le_scale_factor.text()) / 100.0
+            # Obtener porcentaje mínimo (por defecto 80% para la mayoría de normas)
+            try:
+                min_percent = float(self.ui.le_scale_factor.text()) / 100.0
+                print(f"📊 Porcentaje mínimo: {min_percent*100}%")
+            except:
+                min_percent = 0.80  # 80% por defecto
+                print(f"⚠️ Usando porcentaje por defecto: 80%")
             
             # Calcular factores (dinámico debe ser >= min_percent * estático)
-            fx = max(1.0, (min_percent * base_values['vsx']) / base_values['vdx']) if base_values['vdx'] > 0 else 1.0
-            fy = max(1.0, (min_percent * base_values['vsy']) / base_values['vdy']) if base_values['vdy'] > 0 else 1.0
+            fx = 1.0
+            fy = 1.0
             
-            return {'fx': fx, 'fy': fy}
-        except:
+            if base_values['vdx'] > 0:
+                required_vdx = min_percent * base_values['vsx']
+                fx = max(1.0, required_vdx / base_values['vdx'])
+                
+            if base_values['vdy'] > 0:
+                required_vdy = min_percent * base_values['vsy'] 
+                fy = max(1.0, required_vdy / base_values['vdy'])
+            
+            scale_factors = {'fx': fx, 'fy': fy}
+            print(f"✅ Factores calculados: {scale_factors}")
+            
+            return scale_factors
+            
+        except Exception as e:
+            print(f"❌ Error calculando factores: {e}")
             return {'fx': 1.0, 'fy': 1.0}
 
     def calculate_displacements(self):
@@ -1117,65 +1402,115 @@ class AppBase(QMainWindow):
                 print(f"Error mostrando gráfico: {e}")
 
     def show_modal_data(self):
-        """Mostrar análisis modal con validación de masa mínima"""
-        if not self._connect_etabs():
-            return
+        """Mostrar tabla de datos modales al presionar 'Ver Data'"""
+        # Si no está conectado, conectar automáticamente
+        if not self.SapModel:
+            if not self._connect_etabs():
+                return
         
-        from core.utils.etabs_utils import get_modal_data, process_modal_data
+        from core.utils.etabs_utils import get_modal_data
         
-        modal_data = get_modal_data(self.SapModel)
-        if modal_data is not None:
-            results = process_modal_data(modal_data)
-            if results:
-                # Actualizar campos de período
-                self.ui.le_tx.setText(f"{results['Tx']:.4f}" if results['Tx'] else "N/A")
-                self.ui.le_ty.setText(f"{results['Ty']:.4f}" if results['Ty'] else "N/A")
-                
-                # Actualizar campos de masa participativa acumulada
-                self.ui.le_participacion_x.setText(f"{results['total_mass_x']:.1f}")
-                self.ui.le_participacion_y.setText(f"{results['total_mass_y']:.1f}")
-                
-                # Obtener porcentaje mínimo requerido y validar
-                min_mass = self._get_min_mass_participation()
-                
-                # Validar cumplimiento
-                cumple_x = results['total_mass_x'] >= min_mass
-                cumple_y = results['total_mass_y'] >= min_mass
-                
-                # Aplicar validación visual con colores
-                self._apply_mass_validation(cumple_x, cumple_y)
-                
-                # Mostrar información completa
-                info = f"✅ ANÁLISIS MODAL:\n\n"
-                info += f"📊 PERÍODOS FUNDAMENTALES:\n"
-                info += f"   Tx = {results['Tx']:.4f} s\n" if results['Tx'] else "   Tx = N/A\n"
-                info += f"   Ty = {results['Ty']:.4f} s\n\n" if results['Ty'] else "   Ty = N/A\n\n"
-                
-                info += f"🎯 MASA PARTICIPATIVA ACUMULADA:\n"
-                info += f"   {'✅' if cumple_x else '❌'} Dirección X: {results['total_mass_x']:.1f}% (mín: {min_mass}%)\n"
-                info += f"   {'✅' if cumple_y else '❌'} Dirección Y: {results['total_mass_y']:.1f}% (mín: {min_mass}%)\n\n"
-                
-                info += f"📈 RESUMEN:\n"
-                info += f"   Modos analizados: {results['num_modes']}\n"
-                
-                # Estado general
-                overall_status = "CUMPLE" if (cumple_x and cumple_y) else "NO CUMPLE"
-                color = "🟢" if (cumple_x and cumple_y) else "🔴"
-                info += f"   {color} VALIDACIÓN: {overall_status}"
-                
-                # Mostrar como info o warning según cumplimiento
-                if cumple_x and cumple_y:
-                    self.show_info(info)
-                else:
-                    self.show_warning(info)
-                    
-                # Guardar datos para el botón "Ver Data"
+        try:
+            # Obtener datos modales frescos
+            modal_data = get_modal_data(self.SapModel)
+            
+            if modal_data is not None and len(modal_data) > 0:
+                # Guardar para uso posterior
                 self.modal_table_data = modal_data
                 
+                # Mostrar tabla directamente
+                self._show_modal_table_dialog(modal_data)
+                
+                # También actualizar campos automáticamente
+                from core.utils.etabs_utils import process_modal_data
+                results = process_modal_data(modal_data)
+                if results:
+                    self._update_modal_fields(results)
             else:
-                self.show_warning("No se pudieron procesar los datos modales")
-        else:
-            self.show_warning("No hay datos modales disponibles. Ejecute el análisis modal en ETABS.")
+                self.show_warning("⚠️ No hay datos modales disponibles.\nEjecute el análisis modal en ETABS primero.")
+                
+        except Exception as e:
+            print(f"Error obteniendo datos modales: {e}")
+            self.show_warning(f"Error obteniendo datos modales: {str(e)}")
+    
+    def _show_modal_table_dialog(self, modal_data):
+        """Mostrar tabla modal en diálogo simplificado"""
+        try:
+            from shared.dialogs.table_dialog import show_dataframe_dialog
+            
+            # Llamada simplificada sin info_text
+            show_dataframe_dialog(
+                parent=self,
+                dataframe=modal_data,
+                title="Análisis Modal - Períodos y Masas Participativas"
+            )
+        except ImportError:
+            # Si no existe el diálogo, usar método alternativo
+            self._show_modal_table_basic(modal_data)
+
+    def _show_modal_table_basic(self, modal_data):
+        """Mostrar tabla modal básica con columnas filtradas - SIN RESALTADO"""
+        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView, QPushButton
+        from PyQt5.QtCore import Qt
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Análisis Modal - ETABS")
+        dialog.resize(800, 600)
+        
+        layout = QVBoxLayout()
+        
+        # Filtrar columnas igual que en el diálogo principal
+        desired_columns = ['Mode', 'Period', 'UX', 'UY', 'RZ', 'SumUX', 'SumUY', 'SumRZ']
+        available_columns = [col for col in desired_columns if col in modal_data.columns]
+        
+        filtered_data = modal_data[available_columns].copy()
+        if 'Mode' not in filtered_data.columns:
+            filtered_data.insert(0, 'Mode', range(1, len(filtered_data) + 1))
+        
+        # Crear tabla
+        table = QTableWidget()
+        table.setRowCount(len(filtered_data))
+        table.setColumnCount(len(filtered_data.columns))
+        table.setHorizontalHeaderLabels([str(col) for col in filtered_data.columns])
+        
+        # Llenar datos
+        for i, (index, row) in enumerate(filtered_data.iterrows()):
+            for j, (col_name, value) in enumerate(row.items()):
+                if isinstance(value, float):
+                    if col_name == 'Period':
+                        text = f"{value:.4f}"
+                    elif col_name in ['UX', 'UY', 'RZ']:
+                        text = f"{value:.6f}"
+                    elif col_name.startswith('Sum'):
+                        text = f"{value:.4f}"
+                    else:
+                        text = f"{value:.6f}"
+                else:
+                    text = str(value)
+                    
+                item = QTableWidgetItem(text)
+                item.setTextAlignment(Qt.AlignCenter)
+                
+                # ELIMINADO: Resaltado de modos significativos
+                
+                table.setItem(i, j, item)
+        
+        # Ajustar columnas para ocupar todo el espacio
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        
+        # Botones
+        buttons_layout = QHBoxLayout()
+        close_btn = QPushButton("Cerrar")
+        close_btn.clicked.connect(dialog.accept)
+        
+        buttons_layout.addStretch()
+        buttons_layout.addWidget(close_btn)
+        
+        layout.addWidget(table)
+        layout.addLayout(buttons_layout)
+        dialog.setLayout(layout)
+        
+        dialog.exec_()
 
     def _get_min_mass_participation(self) -> float:
         """Obtener porcentaje mínimo de masa participativa validado"""
@@ -1228,19 +1563,8 @@ class AppBase(QMainWindow):
                 pass  # No hay datos para re-validar
             
     def show_modal_table(self):
-        """Mostrar tabla completa de datos modales"""
+        """Método alias para compatibilidad con conexión de botones existente"""
         self.show_modal_data()
-        if hasattr(self, 'modal_table_data') and self.modal_table_data is not None:
-            from shared.dialogs.table_dialog import show_dataframe_dialog
-            
-            show_dataframe_dialog(
-                parent=self,
-                dataframe=self.modal_table_data,
-                title="Análisis Modal - Períodos y Masas Participativas",
-                info_text="Datos completos del análisis modal obtenidos de ETABS"
-            )
-        else:
-            self.show_warning("Primero ejecute 'Ver Data' para obtener los datos modales")
             
     def calculate_torsion(self):
         """Calcular irregularidad torsional"""
@@ -1360,17 +1684,24 @@ class AppBase(QMainWindow):
         )
 
     def update_all_data(self):
-        """Actualizar todos los datos desde ETABS"""
+        """Actualizar todos los datos automáticamente - INCLUYENDO CORTANTES"""
         if not self._connect_etabs():
             return
         
-        # Actualizar combinaciones
-        self.refresh_all_combinations()
-        
-        # Actualizar datos modales
-        self.show_modal_data()
-        
-        self.show_info("Datos actualizados desde ETABS")
+        try:
+            print("🔄 Actualizando todos los datos...")
+            
+            # 1. Análisis modal y cortantes (automático al conectar)
+            self._auto_update_modal_analysis()
+            
+            # 2. Otros análisis que requieren botón manual
+            # Nota: Derivas y desplazamientos mantienen sus botones
+            
+            self.show_info("✅ Todos los datos actualizados automáticamente")
+            
+        except Exception as e:
+            print(f"Error actualizando datos: {e}")
+            self.show_warning(f"Error actualizando datos: {str(e)}")
 
     def _get_required_seismic_params(self) -> list:
         """Obtener lista de parámetros sísmicos requeridos según el país"""

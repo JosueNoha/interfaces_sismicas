@@ -1,63 +1,139 @@
 """
-Diálogo para mostrar DataFrames en formato tabla
+Diálogo ultra simplificado para mostrar solo tabla modal filtrada
 """
 
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton, 
-                            QTableWidget, QTableWidgetItem, QLabel, QHeaderView)
+from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTableWidget, 
+                           QTableWidgetItem, QHeaderView, QPushButton)
 from PyQt5.QtCore import Qt
 import pandas as pd
 
 
-def show_dataframe_dialog(parent, dataframe, title="Datos", info_text=""):
+def show_dataframe_dialog(parent, dataframe, title="Datos ETABS", info_text=""):
     """
-    Mostrar DataFrame en diálogo de tabla
+    Mostrar DataFrame en diálogo ultra simple - solo tabla
     
     Args:
         parent: Widget padre
-        dataframe: pandas DataFrame
+        dataframe: pandas DataFrame con los datos
         title: Título del diálogo
-        info_text: Texto informativo adicional
+        info_text: No se usa (para compatibilidad)
     """
-    dialog = QDialog(parent)
-    dialog.setWindowTitle(title)
-    dialog.setMinimumSize(800, 400)
-    dialog.setModal(True)
-    
-    layout = QVBoxLayout(dialog)
-    
-    # Texto informativo
-    if info_text:
-        info_label = QLabel(info_text)
-        info_label.setWordWrap(True)
-        layout.addWidget(info_label)
-    
-    # Tabla
-    table = QTableWidget()
-    table.setRowCount(len(dataframe))
-    table.setColumnCount(len(dataframe.columns))
-    table.setHorizontalHeaderLabels(dataframe.columns.tolist())
-    
-    # Llenar datos
-    for i, (index, row) in enumerate(dataframe.iterrows()):
-        for j, value in enumerate(row):
-            item = QTableWidgetItem(str(value))
-            table.setItem(i, j, item)
-    
-    # Ajustar columnas
-    table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-    table.setAlternatingRowColors(True)
-    table.setSelectionBehavior(QTableWidget.SelectRows)
-    
-    layout.addWidget(table)
-    
-    # Botón cerrar
-    button_layout = QHBoxLayout()
-    button_layout.addStretch()
-    
-    btn_close = QPushButton("Cerrar")
-    btn_close.clicked.connect(dialog.accept)
-    button_layout.addWidget(btn_close)
-    
-    layout.addLayout(button_layout)
-    
+    dialog = DataFrameDialog(parent, dataframe, title)
     dialog.exec_()
+
+
+class DataFrameDialog(QDialog):
+    """Diálogo ultra simplificado - solo tabla modal filtrada"""
+    
+    def __init__(self, parent, dataframe, title="Datos ETABS"):
+        super().__init__(parent)
+        
+        self.df = self._filter_columns(dataframe)
+        
+        self.setWindowTitle(title)
+        self.resize(800, 600)  # Más compacto
+        
+        self._setup_ui()
+        self._populate_table()
+        self._setup_connections()
+    
+    def _filter_columns(self, dataframe):
+        """Filtrar solo las columnas relevantes"""
+        # Columnas que queremos mostrar
+        desired_columns = ['Mode', 'Period', 'UX', 'UY', 'RZ', 'SumUX', 'SumUY', 'SumRZ']
+        
+        # Verificar qué columnas existen en el DataFrame
+        available_columns = []
+        for col in desired_columns:
+            if col in dataframe.columns:
+                available_columns.append(col)
+        
+        # Si no hay columna 'Mode', crearla
+        filtered_df = dataframe[available_columns].copy()
+        if 'Mode' not in filtered_df.columns:
+            filtered_df.insert(0, 'Mode', range(1, len(filtered_df) + 1))
+        
+        return filtered_df
+    
+    def _setup_ui(self):
+        """Configurar interfaz ultra simplificada"""
+        layout = QVBoxLayout()
+        
+        # Solo la tabla - sin paneles laterales ni grupos
+        self.table = QTableWidget()
+        self.table.setSortingEnabled(True)
+        layout.addWidget(self.table)
+        
+        # Botones inferiores
+        buttons_layout = QHBoxLayout()
+        
+        self.btn_export = QPushButton("Exportar CSV")
+        self.btn_close = QPushButton("Cerrar")
+        
+        buttons_layout.addStretch()
+        buttons_layout.addWidget(self.btn_export)
+        buttons_layout.addWidget(self.btn_close)
+        
+        layout.addLayout(buttons_layout)
+        self.setLayout(layout)
+    
+    def _populate_table(self):
+        """Llenar tabla con datos filtrados - SIN RESALTADO"""
+        self.table.setRowCount(len(self.df))
+        self.table.setColumnCount(len(self.df.columns))
+        
+        # Headers
+        headers = [str(col) for col in self.df.columns]
+        self.table.setHorizontalHeaderLabels(headers)
+        
+        # Datos
+        for i, (index, row) in enumerate(self.df.iterrows()):
+            for j, (col_name, value) in enumerate(row.items()):
+                if pd.isna(value):
+                    text = "N/A"
+                elif isinstance(value, float):
+                    # Formateo específico por columna
+                    if col_name == 'Period':
+                        text = f"{value:.4f}"
+                    elif col_name in ['UX', 'UY', 'RZ']:
+                        text = f"{value:.6f}"
+                    elif col_name.startswith('Sum'):
+                        text = f"{value:.4f}"
+                    else:
+                        text = f"{value:.6f}"
+                else:
+                    text = str(value)
+                
+                item = QTableWidgetItem(text)
+                item.setTextAlignment(Qt.AlignCenter)
+                
+                # ELIMINADO: Resaltado de modos significativos
+                
+                self.table.setItem(i, j, item)
+        
+        # Ajustar tabla a todo el espacio disponible
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+    
+    def _setup_connections(self):
+        """Conectar señales"""
+        self.btn_close.clicked.connect(self.accept)
+        self.btn_export.clicked.connect(self._export_csv)
+    
+    def _export_csv(self):
+        """Exportar datos filtrados a CSV"""
+        from PyQt5.QtWidgets import QFileDialog
+        
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Exportar Datos Modales", 
+            "analisis_modal_filtrado.csv", 
+            "CSV files (*.csv)"
+        )
+        
+        if file_path:
+            try:
+                self.df.to_csv(file_path, index=False)
+                from PyQt5.QtWidgets import QMessageBox
+                QMessageBox.information(self, "Éxito", f"Datos exportados a:\n{file_path}")
+            except Exception as e:
+                from PyQt5.QtWidgets import QMessageBox
+                QMessageBox.warning(self, "Error", f"Error exportando datos:\n{str(e)}")

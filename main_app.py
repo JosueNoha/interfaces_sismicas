@@ -57,7 +57,7 @@ def show_available_countries():
 
 
 def main():
-    """Función principal usando factory centralizado"""
+    """Función principal usando factory centralizado corregido"""
     args = parse_arguments()
     
     if args.list:
@@ -65,7 +65,7 @@ def main():
         return 0
     
     try:
-        # Usar factory centralizado
+        # ✅ USAR FACTORY CON CLASES REALES
         from core.app_factory import create_qt_application, SeismicAppFactory
         
         print(f"🚀 Iniciando aplicación {args.pais.upper()}...")
@@ -73,7 +73,7 @@ def main():
         # Crear aplicación Qt
         qt_app = create_qt_application()
         
-        # Crear aplicación sísmica usando factory
+        # Crear aplicación usando clases reales BoliviaSeismicApp/PeruSeismicApp
         seismic_app = SeismicAppFactory.create_app(args.pais)
         
         # Configurar título específico
@@ -87,7 +87,7 @@ def main():
         seismic_app.show()
         
         if args.debug:
-            print(f"✅ Aplicación {args.pais.upper()} iniciada en modo debug")
+            print(f"✅ Aplicación {args.pais.upper()} iniciada correctamente")
         
         return qt_app.exec_()
         
@@ -97,7 +97,6 @@ def main():
             import traceback
             traceback.print_exc()
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

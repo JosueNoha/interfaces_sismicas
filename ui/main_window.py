@@ -256,10 +256,6 @@ class Ui_MainWindow(object):
         self.group_shear = QtWidgets.QGroupBox("Fuerzas Cortantes")
         shear_layout = QtWidgets.QGridLayout(self.group_shear)
         
-        # Botón calcular
-        self.b_cortantes = QtWidgets.QPushButton("Calcular Cortantes")
-        shear_layout.addWidget(self.b_cortantes, 0, 0, 1, 4)
-        
         # Factor de escala - fila independiente
         self.label_scale_factor = QtWidgets.QLabel("Factor Escala Mín (%):")
         self.le_scale_factor = QtWidgets.QLineEdit("80.0")

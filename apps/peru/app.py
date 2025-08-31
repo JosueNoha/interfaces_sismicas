@@ -306,7 +306,11 @@ class PeruSeismicApp(AppBase):
             
             # Actualizar display de parámetros
             self._update_peru_parameters_display()
-            
+
+            if hasattr(self.sismo, 'espectro_peru'):
+                T, Sa = self.sismo.espectro_peru()
+                self.sismo.fig_spectrum = self.sismo._create_spectrum_figure(T, Sa, 'peru')
+                        
             info = f"""✅ Espectro E.030 Calculado:
 
 📊 PARÁMETROS:
@@ -345,6 +349,9 @@ class PeruSeismicApp(AppBase):
             output_dir = self.get_output_directory()
             if not output_dir:
                 return
+            
+            # AGREGAR: Calcular cortantes antes de generar memoria
+            self.calculate_shear_forces()
             
             # Actualizar modelo
             self.update_sismo_data()

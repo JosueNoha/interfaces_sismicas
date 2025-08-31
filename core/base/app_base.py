@@ -841,9 +841,6 @@ class AppBase(QMainWindow):
                     self.sismo.data.Vsy = base_values['vsy']
                     self.sismo.data.FEx = scale_factors['fx']
                     self.sismo.data.FEy = scale_factors['fy']
-
-                    # Crear gráficos
-                    self._generate_shear_plots()
                     
                     self.show_info("✅ Cortantes, factores y gráficos generados")
                 else:
@@ -887,29 +884,6 @@ class AppBase(QMainWindow):
             return {'fx': fx, 'fy': fy}
         except:
             return {'fx': 1.0, 'fy': 1.0}
-        
-    def _generate_shear_plots(self):
-        """Generar gráficos de cortantes"""
-        try:
-            if hasattr(self.sismo, 'dynamic_shear_fig'):
-                # Mostrar o guardar gráfico dinámico
-                self._save_shear_plot(self.sismo.dynamic_shear_fig, 'cortante_dinamico.png')
-            
-            if hasattr(self.sismo, 'static_shear_fig'):
-                # Mostrar o guardar gráfico estático  
-                self._save_shear_plot(self.sismo.static_shear_fig, 'cortante_estatico.png')
-                
-        except Exception as e:
-            print(f"Error generando gráficos: {e}")
-
-    def _save_shear_plot(self, fig, filename):
-        """Guardar gráfico en directorio temporal para preview"""
-        import tempfile
-        import os
-        
-        temp_dir = tempfile.gettempdir()
-        filepath = os.path.join(temp_dir, filename)
-        fig.savefig(filepath, dpi=150, bbox_inches='tight')
 
     def calculate_displacements(self):
         """Calcular desplazamientos laterales"""

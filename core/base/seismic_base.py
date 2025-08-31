@@ -712,3 +712,25 @@ class SeismicBase:
         except Exception as e:
             print(f"Error creando tabla detallada: {e}")
             return None
+
+    def _create_spectrum_figure(self, T, Sa, country='generic'):
+        """Crear figura del espectro de respuesta"""
+        from matplotlib.figure import Figure
+        
+        fig = Figure(figsize=(6, 4), dpi=100)
+        ax = fig.add_subplot(111)
+        
+        ax.plot(T, Sa, 'r-', linewidth=2, label='Espectro Elástico')
+        ax.set_xlabel('Período T (s)')
+        ax.set_ylabel('Sa (g)')
+        ax.grid(True, linestyle='--', alpha=0.7)
+        ax.legend()
+        
+        titles = {
+            'bolivia': 'Espectro CNBDS 2023',
+            'peru': 'Espectro E.030',
+            'generic': 'Espectro de Respuesta'
+        }
+        ax.set_title(titles.get(country, titles['generic']))
+        
+        return fig

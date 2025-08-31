@@ -48,7 +48,7 @@ class PeruMemoryGenerator(MemoryBase):
         content = self.insert_content_sections(content)
         
         # Generar recursos
-        self.actualize_images_and_tables()
+        self.actualize_images()
         self.generate_spectrum_data()
         
         # Generar tablas usando generador centralizado
@@ -200,7 +200,7 @@ class PeruMemoryGenerator(MemoryBase):
             
             # 8. Actualizar imágenes y tablas existentes
             print("\n📁 PROCESANDO IMÁGENES Y TABLAS PERÚ...")
-            self.actualize_images_and_tables()
+            self.actualize_images()
             
             # 9. Insertar tablas en memoria
             print("📊 INSERTANDO TABLAS PERÚ...")

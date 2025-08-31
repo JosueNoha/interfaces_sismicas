@@ -104,22 +104,6 @@ class MemoryBase(ABC):
         
         return replace_template_variables(content, basic_vars)
 
-    def actualize_images(self):
-        """Actualizar imágenes en el directorio de salida"""
-        # Crear directorio de imágenes
-        ensure_directory_exists(str(self.images_dir))
-        
-        # Copiar imágenes del proyecto si existen
-        if hasattr(self.seismic, 'urls_imagenes'):
-            for img_type, img_path in self.seismic.urls_imagenes.items():
-                if img_path and os.path.exists(img_path):
-                    self._copy_project_image(img_path, f"{img_type}.jpg")
-        
-        # Guardar gráficos generados por matplotlib
-        self._save_matplotlib_figures()
-        
-        # Copiar recursos estáticos
-        self._copy_static_resources()
 
     def _copy_project_image(self, source_path: str, dest_name: str):
         """Copiar imagen del proyecto al directorio de salida"""
@@ -128,29 +112,45 @@ class MemoryBase(ABC):
             shutil.copy2(source_path, dest_path)
         except Exception as e:
             print(f"Error copiando imagen {source_path}: {e}")
+            
 
     def _save_matplotlib_figures(self):
-        """Guardar figuras de matplotlib"""
+        """Guardar todas las figuras de matplotlib con mejor logging"""
         figure_mappings = [
-            ('fig_drifts', 'derivas.pdf'),
-            ('fig_displacements', 'desplazamientos_laterales.pdf'),
-            ('fig_spectrum', 'espectro.pdf'),
-            ('dynamic_shear_fig', 'cortante_dinamico.pdf'),
-            ('static_shear_fig', 'cortante_estatico.pdf')
+            ('fig_drifts', 'derivas.pdf', 'Derivas'),
+            ('fig_displacements', 'desplazamientos_laterales.pdf', 'Desplazamientos'),
+            ('fig_spectrum', 'espectro.pdf', 'Espectro'),
+            ('dynamic_shear_fig', 'cortante_dinamico.pdf', 'Cortante Dinámico'),
+            ('static_shear_fig', 'cortante_estatico.pdf', 'Cortante Estático')
         ]
         
-        for fig_attr, filename in figure_mappings:
+        saved_count = 0
+        for fig_attr, filename, display_name in figure_mappings:
             if hasattr(self.seismic, fig_attr):
                 fig = getattr(self.seismic, fig_attr)
                 if fig is not None:
                     try:
-                        fig.savefig(
-                            self.images_dir / filename, 
-                            dpi=300, 
-                            bbox_inches='tight'
-                        )
+                        output_path = self.images_dir / filename
+                        fig.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
+                        print(f"✓ {display_name} guardado: {filename}")
+                        saved_count += 1
                     except Exception as e:
-                        print(f"Error guardando figura {fig_attr}: {e}")
+                        print(f"✗ Error guardando {display_name}: {e}")
+                else:
+                    print(f"⚠ {display_name}: figura es None")
+            else:
+                print(f"⚠ {display_name}: no existe en el objeto sísmico")
+        
+        print(f"📊 Total figuras guardadas: {saved_count}/5")
+
+    def _save_single_figure(self, fig, filename, fig_name):
+        """Guardar una sola figura con manejo de errores centralizado"""
+        try:
+            output_path = self.images_dir / filename
+            fig.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
+            print(f"✓ {fig_name} guardado: {output_path.name}")
+        except Exception as e:
+            print(f"✗ Error guardando {fig_name}: {e}")
 
     def _copy_static_resources(self):
         """Copiar recursos estáticos específicos del país - implementar en clases derivadas"""
@@ -367,26 +367,48 @@ Datos no disponibles \\\\
         
         return errors
 
-    def actualize_images_and_tables(self):
-        """
-        Actualizar imágenes y tablas existentes conectándolas con la memoria
-        """
+    def actualize_images(self):
+        """Actualizar imágenes en el directorio de salida"""
         # Crear directorio de imágenes
         ensure_directory_exists(str(self.images_dir))
         
-        # 1. Copiar imágenes cargadas por el usuario
-        self._copy_existing_user_images()
+        # AGREGAR: Asegurar que las figuras existan antes de guardar
+        self._ensure_figures_exist()
         
-        # 2. Guardar gráficos matplotlib existentes  
-        self._save_existing_matplotlib_figures()
+        # Copiar imágenes del proyecto si existen
+        if hasattr(self.seismic, 'urls_imagenes'):
+            for img_type, img_path in self.seismic.urls_imagenes.items():
+                if img_path and os.path.exists(img_path):
+                    self._copy_project_image(img_path, f"{img_type}.jpg")
         
-        # 3. Copiar recursos estáticos específicos del país
+        # Guardar gráficos generados por matplotlib
+        self._save_matplotlib_figures()
+        
+        # Copiar recursos estáticos
         self._copy_static_resources()
         
-        # 4. Generar archivos de datos para tablas
-        self._generate_existing_table_data()
+    def _ensure_figures_exist(self):
+        """Asegurar que las figuras matplotlib existan antes de guardar"""
+        # Si las figuras no existen, intentar crearlas desde datos existentes
+        if hasattr(self.seismic, 'shear_dynamic') and not self.seismic.shear_dynamic.empty:
+            if not hasattr(self.seismic, 'dynamic_shear_fig') or self.seismic.dynamic_shear_fig is None:
+                # Recrear figura dinámica usando casos guardados
+                sx = getattr(self.seismic, '_saved_sx_dynamic', [])
+                sy = getattr(self.seismic, '_saved_sy_dynamic', [])
+                if sx and sy:
+                    self.seismic.dynamic_shear_fig = self.seismic._create_shear_figure(
+                        self.seismic.shear_dynamic, sx, sy, 'dynamic'
+                    )
         
-        print(f"✅ Imágenes y tablas actualizadas en: {self.images_dir}")
+        if hasattr(self.seismic, 'shear_static') and not self.seismic.shear_static.empty:
+            if not hasattr(self.seismic, 'static_shear_fig') or self.seismic.static_shear_fig is None:
+                # Recrear figura estática usando casos guardados
+                sx = getattr(self.seismic, '_saved_sx_static', [])
+                sy = getattr(self.seismic, '_saved_sy_static', [])
+                if sx and sy:
+                    self.seismic.static_shear_fig = self.seismic._create_shear_figure(
+                        self.seismic.shear_static, sx, sy, 'static'
+                    )
 
     def _copy_existing_user_images(self):
         """Copiar solo las imágenes que ya existen y fueron cargadas"""

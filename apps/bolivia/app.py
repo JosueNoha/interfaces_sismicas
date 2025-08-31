@@ -116,6 +116,10 @@ class BoliviaSeismicApp(AppBase):
             self.sismo.Fa = Fa
             self.sismo.Fv = Fv
             self.sismo.So = So
+
+            if self.sismo.espectro_bolivia:
+                T, Sa = self.sismo.espectro_bolivia()
+                self.sismo.fig_spectrum = self.sismo._create_spectrum_figure(T, Sa, 'bolivia')
             
             # Mostrar resultados
             info = f"""✅ Parámetros Espectrales CNBDS 2023:
@@ -162,6 +166,9 @@ class BoliviaSeismicApp(AppBase):
             output_dir = self.get_output_directory()
             if not output_dir:
                 return
+            
+            # AGREGAR: Calcular cortantes antes de generar memoria
+            self.calculate_shear_forces()
             
             # Actualizar modelo
             self.update_sismo_data()

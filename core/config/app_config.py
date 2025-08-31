@@ -16,13 +16,16 @@ BOLIVIA_CONFIG = {
     # Parámetros sísmicos por defecto
     'parametros_defecto': {
         'ubicacion': 'La Paz',
-        'autor': 'Yabar Ingenieros',
+        'autor': 'Yabar Ingenieros', 
         'proyecto': 'Edificación de Concreto Reforzado',
         'fecha': '27/08/2025',
-        'Fa': 1.86,
-        'Fv': 0.63,
-        'So': 2.9,
-        'categoria': 'B'
+        'Fa': 1.86,  # Factor de amplificación periodo corto
+        'Fv': 2.64,  # Factor de amplificación periodo largo
+        'So': 2.9,   # Valor del espectro en roca
+        'I': 1.0,    # Factor de importancia (Ie) - Bolivia SÍ usa I
+        'R': 8.0,    # Factor de reducción - Pórticos especiales
+        'categoria_suelo': 'S2',
+        'categoria_edificacion': 'Tipo II - Uso habitual'
     },
     
     # Configuración de ventana
@@ -73,15 +76,16 @@ PERU_CONFIG = {
     'parametros_defecto': {
         'ubicacion': 'Lima',
         'autor': 'Yabar Ingenieros',
-        'proyecto': 'Edificación de Concreto Reforzado',
+        'proyecto': 'Edificación de Concreto Reforzado', 
         'fecha': '27/08/2025',
         'Z': 0.25,  # Factor de zona para Lima
-        'U': 1.0,   # Factor de uso para edificaciones comunes
+        'U': 1.0,   # Factor de uso - Perú usa U, no I
         'S': 1.20,  # Factor de suelo S1
         'Tp': 0.6,  # Período que define meseta del espectro
         'Tl': 2.0,  # Período que define inicio rama descendente
+        'R': 8.0,   # Factor de reducción - Pórticos especiales
         'suelo': 'S1',
-        'categoria': 'B - Comunes'
+        'categoria': 'C - Comunes'
     },
     
     # Configuración de ventana

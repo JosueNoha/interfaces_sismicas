@@ -368,58 +368,80 @@ class AppBase(QMainWindow):
             self.ui.le_max_drift.setStyleSheet("QLineEdit { border: 2px solid red; }")
 
     def load_image(self, image_type: str):
-        """Cargar imagen del tipo especificado"""
+        """Cargar imagen y conectarla con la memoria"""
+        from PyQt5.QtWidgets import QFileDialog
+        
+        # Asegurar estructura
+        if not hasattr(self.sismo, 'urls_imagenes'):
+            self.sismo.urls_imagenes = {}
+        
+        # Seleccionar archivo
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            f"Seleccionar imagen para {image_type}",
+            f"Seleccionar imagen",
             "",
-            "Imágenes (*.png *.jpg *.jpeg *.bmp *.gif);;Todos los archivos (*)"
+            "Imágenes (*.png *.jpg *.jpeg *.bmp);;Todos (*.*)"
         )
         
         if file_path:
-            # Guardar ruta en el objeto sismo
             self.sismo.urls_imagenes[image_type] = file_path
-            self.show_info(f"Imagen {image_type} cargada: {Path(file_path).name}")
+            print(f"✅ Imagen {image_type} cargada: {Path(file_path).name}")
 
     def open_description_dialog(self, desc_type: str):
-        """Abrir diálogo de descripción"""
-        from shared.dialogs.descriptions_dialog import get_description
+        """Abrir diálogo de descripción con plantilla automática"""
+        from shared.dialogs.descriptions_dialog import DescriptionsDialog
         
-        # Títulos según tipo
+        # Asegurar estructura
+        if not hasattr(self.sismo, 'descriptions'):
+            self.sismo.descriptions = {}
+        
+        # Crear diálogo
+        dialog = DescriptionsDialog(parent=self)
+        
+        # Configurar título según tipo
         titles = {
             'descripcion': 'Descripción de la Estructura',
             'modelamiento': 'Criterios de Modelamiento',
-            'cargas': 'Descripción de Cargas Consideradas'
+            'cargas': 'Descripción de Cargas'
         }
         
-        # Obtener descripción existente
-        existing_desc = self.sismo.descriptions.get(desc_type, '')
+        # Configurar tipo ANTES de establecer texto
+        dialog.set_description_type(desc_type, titles.get(desc_type))
+        
+        # Establecer texto existente (o plantilla si está vacío)
+        existing_text = self.sismo.descriptions.get(desc_type, '')
+        dialog.set_existing_text(existing_text)
         
         # Mostrar diálogo
-        texto, accepted = get_description(
-            parent=self,
-            desc_type=desc_type,
-            title=titles.get(desc_type),
-            existing_text=existing_desc
-        )
+        if dialog.exec_() == dialog.Accepted:
+            description_text = dialog.get_description_text()
+            self.sismo.descriptions[desc_type] = description_text
+            
+            # Actualizar UI
+            self._update_description_ui(desc_type, description_text)
+            print(f"✅ Descripción {desc_type} actualizada")
+            
+    def _update_description_ui(self, desc_type: str, description_text: str):
+        """Actualizar elementos de UI relacionados con la descripción"""
+        ui_mappings = {
+            'descripcion': 'lb_descripcion',
+            'modelamiento': 'lb_modelamiento',
+            'cargas': 'lb_cargas'
+        }
         
-        if accepted:
-            # Actualizar descripción en el modelo
-            self.sismo.descriptions[desc_type] = texto
+        label_name = ui_mappings.get(desc_type)
+        if label_name and hasattr(self.ui, label_name):
+            label = getattr(self.ui, label_name)
             
-            # Actualizar label en interfaz
-            label_mapping = {
-                'descripcion': self.ui.lb_descripcion,
-                'modelamiento': self.ui.lb_modelamiento,
-                'cargas': self.ui.lb_cargas
-            }
-            
-            label = label_mapping.get(desc_type)
-            if label:
-                if texto.strip():
-                    label.setText('Descripción cargada')
-                else:
-                    label.setText('Sin Descripción')
+            if description_text.strip():
+                preview = description_text[:50] + "..." if len(description_text) > 50 else description_text
+                label.setText(f"✅ {preview}")
+                label.setStyleSheet("color: green;")
+                label.setToolTip(f"Descripción completa:\n{description_text}")
+            else:
+                label.setText("Sin Descripción")
+                label.setStyleSheet("color: gray;")
+                label.setToolTip("No hay descripción")
 
     def get_project_data(self):
         """Obtener datos del proyecto desde interfaz"""
@@ -519,6 +541,38 @@ class AppBase(QMainWindow):
         if hasattr(self.ui, 'group_displacement'):
             self.ui.group_displacement.setTitle(f"Desplazamientos ({u_d}) y Derivas")
     
+    def _force_generate_all_plots(self):
+        """Forzar generación de todos los gráficos necesarios"""
+        print("🔄 Generando todos los gráficos para memoria...")
+        
+        try:
+            # 1. Forzar cálculo de derivas si no existen
+            if not hasattr(self.sismo, 'fig_drifts') or self.sismo.fig_drifts is None:
+                print("  📊 Generando gráfico de derivas...")
+                self.calculate_drifts()
+            
+            # 2. Forzar cálculo de desplazamientos si no existen  
+            if not hasattr(self.sismo, 'fig_displacements') or self.sismo.fig_displacements is None:
+                print("  📈 Generando gráfico de desplazamientos...")
+                self.get_displacements()
+            
+            # 3. Forzar cálculo de cortantes si no existen
+            if (not hasattr(self.sismo, 'dynamic_shear_fig') or self.sismo.dynamic_shear_fig is None or
+                not hasattr(self.sismo, 'static_shear_fig') or self.sismo.static_shear_fig is None):
+                print("  ⚡ Generando gráficos de cortantes...")
+                self.calculate_shear_forces()
+            
+            # 4. Generar espectro si no existe
+            if not hasattr(self.sismo, 'fig_spectrum') or self.sismo.fig_spectrum is None:
+                print("  📊 Generando gráfico del espectro...")
+                if hasattr(self, 'plot_spectrum'):
+                    self.plot_spectrum()
+            
+            print("✅ Todos los gráficos generados")
+            
+        except Exception as e:
+            print(f"⚠️ Error generando gráficos: {e}")
+    
     def get_current_units(self):
         """Obtener unidades actuales"""
         if hasattr(self.ui, 'units_widget'):
@@ -561,8 +615,182 @@ class AppBase(QMainWindow):
 
     # Métodos virtuales para ser implementados en clases derivadas
     def generate_report(self):
-        """Generar reporte - implementar en clases derivadas"""
-        self.show_warning("Función de reporte no implementada para esta aplicación")
+        """Generar reporte de memoria - SIMPLIFICADO"""
+        try:
+            print("\n🚀 INICIANDO GENERACIÓN DE MEMORIA...")
+            
+            # Solo validar conexión ETABS
+            if not self._connect_etabs():
+                self.show_message("Error", "No se pudo conectar con ETABS", 'error')
+                return
+            
+            # AGREGAR: Forzar generación de todos los gráficos
+            self._force_generate_all_plots()
+            
+            # Generar memoria usando el generador del país
+            print("📄 GENERANDO MEMORIA DE CÁLCULO...")
+            
+            # Crear directorio de salida
+            output_dir = Path("memoria_output")
+            output_dir.mkdir(exist_ok=True)
+            
+            # Usar generador específico del país
+            memory_generator = self._create_memory_generator(output_dir)
+            
+            try:
+                tex_file = memory_generator.generate_memory()
+                
+                self.show_message(
+                    "Éxito",
+                    f"Memoria generada exitosamente:\n{tex_file}",
+                    'info'
+                )
+                
+                # Abrir directorio de salida
+                self._open_output_directory(output_dir)
+                    
+            except ValueError as ve:
+                # Error de validación - mostrar mensaje específico
+                self.show_message("Datos Incompletos", str(ve), 'warning')
+                
+            except Exception as e:
+                # Error general
+                self.show_message("Error", f"Error generando memoria: {e}", 'error')
+                
+        except Exception as e:
+            self.show_message("Error", f"Error inesperado: {e}", 'error')
+
+    def _open_output_directory(self, output_dir):
+        """Abrir directorio de salida en el explorador"""
+        try:
+            import subprocess
+            import platform
+            
+            if platform.system() == "Windows":
+                subprocess.Popen(f'explorer "{output_dir.absolute()}"')
+            elif platform.system() == "Darwin":  # macOS
+                subprocess.Popen(['open', str(output_dir.absolute())])
+            else:  # Linux
+                subprocess.Popen(['xdg-open', str(output_dir.absolute())])
+        except:
+            pass  # Ignorar errores al abrir directorio
+
+    def _auto_generate_modal(self) -> bool:
+        """Generar análisis modal automáticamente"""
+        try:
+            # Usar método existente si está disponible
+            if hasattr(self, 'get_modal_data'):
+                self.get_modal_data()
+                return True
+            return False
+        except Exception as e:
+            print(f"Error generando modal: {e}")
+            return False
+
+    def _auto_generate_drifts(self) -> bool:
+        """Generar análisis de derivas automáticamente"""
+        try:
+            if hasattr(self, 'calculate_drifts'):
+                self.calculate_drifts()
+                return True
+            return False
+        except Exception as e:
+            print(f"Error generando derivas: {e}")
+            return False
+
+    def _auto_generate_displacements(self) -> bool:
+        """Generar análisis de desplazamientos automáticamente"""
+        try:
+            if hasattr(self, 'get_displacements'):
+                self.get_displacements()
+                return True
+            return False
+        except Exception as e:
+            print(f"Error generando desplazamientos: {e}")
+            return False
+
+    def _auto_generate_torsion(self) -> bool:
+        """Generar análisis de irregularidad torsional automáticamente"""
+        try:
+            if hasattr(self, 'calculate_torsion'):
+                self.calculate_torsion()
+                return True
+            elif hasattr(self, 'get_torsion_data'):
+                self.get_torsion_data()
+                return True
+            return False
+        except Exception as e:
+            print(f"Error generando análisis torsional: {e}")
+            return False
+
+    def _auto_generate_spectrum(self) -> bool:
+        """Generar espectro de respuesta automáticamente"""
+        try:
+            # Generar espectro usando parámetros sísmicos actuales
+            if hasattr(self.sismo, 'generate_spectrum_plot'):
+                self.sismo.generate_spectrum_plot()
+                return True
+            elif hasattr(self, 'plot_spectrum'):
+                self.plot_spectrum()
+                return True
+            return False
+        except Exception as e:
+            print(f"Error generando espectro: {e}")
+            return False
+
+    def _create_memory_generator(self, output_dir):
+        """Crear generador de memoria específico del país"""
+        country = self.config.get('country', '').lower()
+        
+        if country == 'bolivia':
+            from apps.bolivia.memory import BoliviaMemoryGenerator
+            return BoliviaMemoryGenerator(self.sismo, output_dir)
+        elif country == 'peru':
+            from apps.peru.memory import PeruMemoryGenerator
+            return PeruMemoryGenerator(self.sismo, output_dir)
+        else:
+            raise ValueError(f"País no soportado: {country}")
+
+    def show_message(self, title: str, message: str, msg_type: str = 'info'):
+        """Mostrar mensaje al usuario"""
+        from PyQt5.QtWidgets import QMessageBox
+        
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle(title)
+        msg_box.setText(message)
+        
+        if msg_type == 'error':
+            msg_box.setIcon(QMessageBox.Critical)
+        elif msg_type == 'warning':
+            msg_box.setIcon(QMessageBox.Warning)
+        else:
+            msg_box.setIcon(QMessageBox.Information)
+        
+        msg_box.exec_()
+
+    def ensure_required_data_structure(self):
+        """Asegurar que exista la estructura de datos necesaria"""
+        # Inicializar estructura de datos si no existe
+        if not hasattr(self.sismo, 'data'):
+            from types import SimpleNamespace
+            self.sismo.data = SimpleNamespace()
+        
+        # Inicializar listas de datos si no existen
+        if not hasattr(self.sismo.data, 'modal_data'):
+            self.sismo.data.modal_data = []
+        
+        if not hasattr(self.sismo.data, 'torsion_data'):
+            self.sismo.data.torsion_data = []
+        
+        # Inicializar URLs de imágenes si no existe
+        if not hasattr(self.sismo, 'urls_imagenes'):
+            self.sismo.urls_imagenes = {
+                'portada': '',
+                'planta': '',
+                '3d': '',
+                'defX': '',
+                'defY': ''
+            }
             
     def calculate_shear_forces(self):
         """Calcular cortantes y factores de escala"""
@@ -1169,3 +1397,16 @@ class AppBase(QMainWindow):
         self.show_modal_data()
         
         self.show_info("Datos actualizados desde ETABS")
+
+    def _get_required_seismic_params(self) -> list:
+        """Obtener lista de parámetros sísmicos requeridos según el país"""
+        country = self.config.get('country', '').lower()
+        
+        if country == 'bolivia':
+            return ['Fa', 'Fv', 'So', 'I', 'R']  # Bolivia usa I (Ie)
+        elif country == 'peru':
+            return ['Z', 'U', 'S', 'R']  # Perú usa U, no I
+        else:
+            return ['R']  # Parámetro mínimo común
+
+    

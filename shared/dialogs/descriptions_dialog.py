@@ -32,7 +32,7 @@ class DescriptionsDialog(QDialog):
         self._connect_signals()
 
     def _create_ui(self):
-        """Crear interfaz del diálogo"""
+        """Crear interfaz del diálogo - SIN botones de plantillas"""
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
         
@@ -67,21 +67,7 @@ class DescriptionsDialog(QDialog):
         
         layout.addWidget(self.ui.pt_description)
         
-        # Botones de plantillas
-        templates_frame = QFrame()
-        templates_layout = QHBoxLayout(templates_frame)
-        
-        self.btn_template_structure = QPushButton("Plantilla Estructura")
-        self.btn_template_modeling = QPushButton("Plantilla Modelamiento")
-        self.btn_template_loads = QPushButton("Plantilla Cargas")
-        
-        templates_layout.addWidget(self.btn_template_structure)
-        templates_layout.addWidget(self.btn_template_modeling)
-        templates_layout.addWidget(self.btn_template_loads)
-        
-        layout.addWidget(templates_frame)
-        
-        # Botones principales
+        # Botones principales (SIN botones de plantillas)
         buttons_layout = QHBoxLayout()
         
         self.btn_clear = QPushButton("Limpiar")
@@ -137,51 +123,48 @@ class DescriptionsDialog(QDialog):
         layout.addLayout(buttons_layout)
 
     def _setup_default_texts(self):
-        """Configurar textos por defecto para plantillas"""
+        """Configurar textos plantilla según el tipo de descripción"""
         self.default_texts = {
-            'estructura': """La edificación de concreto armado tiene {niveles} niveles y {sotanos} sótanos, con un área en planta aproximada de {area} m². 
+        'descripcion': """La edificación de concreto armado cuenta con múltiples niveles sobre el terreno natural.
 
-El sistema estructural en la dirección X consiste en {sistema_x}, mientras que en la dirección Y se tiene {sistema_y}.
+El sistema estructural está conformado por pórticos de concreto armado en ambas direcciones principales, los cuales proporcionan la resistencia necesaria ante cargas gravitacionales y sísmicas.
 
-La estructura fue diseñada para resistir cargas de gravedad y sísmicas según la norma {norma}, considerando las condiciones del suelo y la ubicación geográfica del proyecto.""",
-            
-            'modelamiento': """El modelo matemático de la estructura fue desarrollado utilizando elementos finitos tridimensionales.
+La estructura se considera empotrada en la base y se ha modelado considerando las condiciones del suelo del lugar y las cargas de diseño según la normativa vigente.""",
+        
+        'modelamiento': """El modelo matemático de la estructura fue desarrollado utilizando elementos finitos tridimensionales.
 
 Se consideraron los siguientes aspectos en el modelamiento:
 • Elementos viga representados con elementos frame
-• Elementos placa representados con elementos shell
+• Elementos placa representados con elementos shell  
 • Masas concentradas en el centro de masa de cada nivel
-• Rigidez de losa infinita en su plano
+• Rigidez de losa infinita en su plano (diafragma rígido)
 • Condiciones de apoyo empotrado en la base
+• Propiedades mecánicas del concreto según normativa
 
-Las cargas consideradas incluyen peso propio, carga viva y cargas sísmicas según la norma aplicable.""",
-            
-            'cargas': """Para el análisis sísmico se consideraron las siguientes cargas:
+El análisis incluye la evaluación de modos de vibración y respuesta sísmica según el espectro de diseño correspondiente.""",
+        
+        'cargas': """Se consideraron las siguientes cargas para el diseño estructural:
 
 CARGAS PERMANENTES:
 • Peso propio de elementos estructurales (calculado automáticamente)
-• Acabados: {carga_acabados} kN/m²
-• Tabiquería: {carga_tabiqueria} kN/m²
+• Sobrecarga muerta: 100 kg/m² (tabiquería y acabados)
+• Peso de instalaciones y equipos
 
-CARGAS VIVAS:
-• Sobrecarga de uso: {sobrecarga} kN/m²
+CARGAS VARIABLES:
+• Sobrecarga viva: 200 kg/m² (uso típico de edificación)
+• Carga viva de techo: 100 kg/m²
 
 CARGAS SÍSMICAS:
-• Análisis dinámico modal espectral
-• Análisis estático equivalente (verificación)
-• Combinaciones de carga según norma {norma}"""
+• Aplicadas según la normativa sísmica vigente
+• Espectro de respuesta según las condiciones del sitio
+• Combinaciones de carga incluyendo efectos sísmicos"""
         }
 
     def _connect_signals(self):
         """Conectar señales del diálogo"""
         self.btn_accept.clicked.connect(self._on_accept)
         self.btn_cancel.clicked.connect(self.reject)
-        self.btn_clear.clicked.connect(self._clear_text)
-        
-        # Conectar botones de plantillas
-        self.btn_template_structure.clicked.connect(lambda: self._load_template('estructura'))
-        self.btn_template_modeling.clicked.connect(lambda: self._load_template('modelamiento'))
-        self.btn_template_loads.clicked.connect(lambda: self._load_template('cargas'))
+        self.btn_clear.clicked.connect(self._on_clear)
 
     def _load_template(self, template_type: str):
         """Cargar plantilla de texto"""
@@ -233,7 +216,7 @@ CARGAS SÍSMICAS:
 
     def set_description_type(self, desc_type: str, title: str = None):
         """
-        Configurar tipo de descripción y título
+        Configurar tipo de descripción con texto plantilla automático
         
         Args:
             desc_type: Tipo de descripción ('descripcion', 'modelamiento', 'cargas')
@@ -241,6 +224,7 @@ CARGAS SÍSMICAS:
         """
         self.description_type = desc_type
         
+        # Configurar título
         if title:
             self.label_description.setText(title)
         else:
@@ -250,14 +234,36 @@ CARGAS SÍSMICAS:
                 'cargas': 'Descripción de Cargas Consideradas'
             }
             self.label_description.setText(titles.get(desc_type, 'Ingrese la descripción:'))
-
+            
     def set_existing_text(self, text: str):
-        """Establecer texto existente"""
-        self.ui.pt_description.setPlainText(text or "")
+        """Establecer texto existente o plantilla si está vacío"""
+        if self.description_type and self.description_type in self.default_texts:
+            template_text = self.default_texts[self.description_type]
+            self.ui.pt_description.setPlainText(template_text)
+        else:
+            self.ui.pt_description.clear()
 
     def get_description_text(self) -> str:
         """Obtener texto de la descripción"""
         return self.ui.pt_description.toPlainText().strip()
+    
+    def _on_clear(self):
+        """Limpiar el texto"""
+        from PyQt5.QtWidgets import QMessageBox
+        
+        reply = QMessageBox.question(
+            self, 'Confirmar', '¿Desea limpiar todo el texto?',
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            self.ui.pt_description.clear()
+
+    def _on_accept(self):
+        """Manejar aceptación del diálogo"""
+        text = self.ui.pt_description.toPlainText().strip()
+        self.description_accepted.emit(text)
+        self.accept()
 
 
 # Función de conveniencia para usar el diálogo

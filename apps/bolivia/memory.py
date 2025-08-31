@@ -8,7 +8,9 @@ from pathlib import Path
 import shutil
 
 from core.base.memory_base import MemoryBase
+from core.utils.latex_utils import replace_template_variables
 from core.utils.table_generator import BoliviaTableGenerator
+from core.utils.file_utils import ensure_directory_exists
 
 
 class BoliviaMemoryGenerator(MemoryBase):
@@ -16,6 +18,7 @@ class BoliviaMemoryGenerator(MemoryBase):
     
     def __init__(self, seismic_instance, output_dir):
         super().__init__(seismic_instance, output_dir)
+        self.country = 'bolivia'
         
         # Path al template específico de Bolivia
         self.templates_dir = Path(__file__).parent / 'resources' / 'templates'
@@ -45,7 +48,7 @@ class BoliviaMemoryGenerator(MemoryBase):
         content = self.insert_content_sections(content)
         
         # Generar recursos
-        self.actualize_images()
+        self.actualize_images_and_tables()
         self.generate_spectrum_data()
         
         # Generar tablas usando generador centralizado
@@ -64,28 +67,16 @@ class BoliviaMemoryGenerator(MemoryBase):
         variables = {}
         
         # Parámetros sísmicos CNBDS 2023
-        if hasattr(self.seismic, 'Fa'):
-            variables['Fa'] = self.seismic.Fa
-        if hasattr(self.seismic, 'Fv'):
-            variables['Fv'] = self.seismic.Fv
-        if hasattr(self.seismic, 'So'):
-            variables['So'] = self.seismic.So
+        for param in ['Fa', 'Fv', 'So', 'categoria_suelo']:
+            if hasattr(self.seismic, param):
+                variables[param] = getattr(self.seismic, param)
         
-        # Parámetros espectrales calculados
-        if hasattr(self.seismic, 'SDS'):
-            variables['Samax'] = self.seismic.SDS
-        elif hasattr(self.seismic, 'Fa') and hasattr(self.seismic, 'So'):
-            variables['Samax'] = round(2.5 * self.seismic.Fa * self.seismic.So, 3)
+        # Bolivia sí usa I (Ie) y R
+        for param in ['I', 'R']:  # Bolivia mantiene I
+            if hasattr(self.seismic, param):
+                variables[param] = getattr(self.seismic, param)
         
-        # Períodos espectrales
-        if hasattr(self.seismic, 'Fa') and hasattr(self.seismic, 'Fv'):
-            variables.update({
-                'To': round(0.15 * self.seismic.Fv / self.seismic.Fa, 4),
-                'Ts': round(0.5 * self.seismic.Fv / self.seismic.Fa, 4),
-                'Tl': round(4 * self.seismic.Fv / self.seismic.Fa, 4)
-            })
-        
-        # Cortantes si están disponibles
+        # Cortantes y otros datos
         if hasattr(self.seismic, 'data'):
             data = self.seismic.data
             variables.update({
@@ -97,11 +88,11 @@ class BoliviaMemoryGenerator(MemoryBase):
                 'FEy': getattr(data, 'FEy', 1.0)
             })
         
-        # Unidades
-        variables['funit'] = getattr(self.seismic, 'u_f', 'kN')
-        variables['permin'] = 80.0  # Porcentaje mínimo típico
-        
         return variables
+    
+    def replace_country_variables(self, content: str) -> str:
+        """Reemplazar variables específicas de Bolivia en el template"""
+        return replace_template_variables(content, self.template_variables)
 
     def _create_table_generator(self):
         """Crear generador de tablas específico para Bolivia"""
@@ -309,15 +300,40 @@ Sin datos disponibles & - & - \\\\
         return {'dynamic': basic_table, 'static': basic_table}
 
     def _copy_static_resources(self):
-        """Copiar recursos estáticos de Bolivia"""
-        # Copiar mapa sísmico de Bolivia si existe
-        resources_dir = Path(__file__).parent / 'resources' / 'images'
-        if resources_dir.exists():
-            try:
-                for image_file in resources_dir.glob('*.png'):
-                    shutil.copy2(image_file, self.images_dir)
-            except Exception as e:
-                print(f"Error copiando recursos Bolivia: {e}")
+        """Copiar recursos estáticos específicos de Bolivia"""
+        print("  🇧🇴 Copiando recursos Bolivia...")
+        
+        # 1. Recursos del directorio del país
+        bolivia_resources = Path(__file__).parent / 'resources' / 'images'
+        if bolivia_resources.exists():
+            self._copy_from_directory(bolivia_resources, "recursos Bolivia")
+        else:
+            print(f"    ℹ️ Directorio no encontrado: {bolivia_resources}")
+        
+        # 2. Recursos compartidos (si existen)
+        shared_resources = Path(__file__).parent.parent.parent / 'shared' / 'resources' / 'images'  
+        if shared_resources.exists():
+            self._copy_from_directory(shared_resources, "recursos compartidos")
+        else:
+            print(f"    ℹ️ Directorio compartido no encontrado: {shared_resources}")
+            
+    def _copy_from_directory(self, source_dir: Path, description: str):
+        """Copiar imágenes desde un directorio"""
+        copied_count = 0
+        extensions = ['*.png', '*.jpg', '*.jpeg', '*.pdf', '*.bmp']
+        
+        for ext in extensions:
+            for image_file in source_dir.glob(ext):
+                try:
+                    dest_path = self.images_dir / image_file.name
+                    shutil.copy2(image_file, dest_path)
+                    print(f"    ✓ {image_file.name} ({description})")
+                    copied_count += 1
+                except Exception as e:
+                    print(f"    ❌ Error copiando {image_file.name}: {e}")
+        
+        if copied_count == 0:
+            print(f"    ℹ️ No se encontraron imágenes en {description}")
 
     def generate_spectrum_data(self):
         """Generar datos del espectro específico de Bolivia"""
@@ -339,15 +355,81 @@ Sin datos disponibles & - & - \\\\
             super().generate_spectrum_data()  # Fallback al método base
 
 
-# Función de conveniencia para compatibilidad
-def generate_memory(seismic_instance, output_dir, **kwargs):
-    """
-    Función de compatibilidad con el código anterior
-    
-    Args:
-        seismic_instance: Instancia de análisis sísmico
-        output_dir: Directorio de salida
-        **kwargs: Argumentos adicionales (ignorados por compatibilidad)
-    """
-    generator = BoliviaMemoryGenerator(seismic_instance, output_dir)
-    return generator.generate_memory()
+    # Función de conveniencia para compatibilidad
+    def generate_memory(self) -> Path:
+        """
+        Generar memoria de cálculo con validación previa para Bolivia
+        
+        Returns:
+            Path al archivo LaTeX generado
+            
+        Raises:
+            ValueError: Si faltan datos requeridos
+        """
+        print("\n🔍 VALIDANDO DATOS PARA BOLIVIA (CNBDS 2023)...")
+        
+        # Validar datos antes de proceder
+        is_valid, errors = self.validate_required_data()
+        
+        if not is_valid:
+            error_msg = "❌ No se puede generar la memoria para Bolivia. Faltan los siguientes elementos:\n\n"
+            error_msg += "\n".join(errors)
+            error_msg += "\n\n💡 Solución: Complete los elementos faltantes antes de generar la memoria."
+            
+            print(error_msg)
+            raise ValueError(error_msg)
+        
+        print("✅ Validación exitosa. Generando memoria Bolivia...")
+        
+        try:
+            # 1. Configurar estructura de salida
+            self.setup_output_structure()
+            
+            # 2. Cargar template de Bolivia
+            content = self.load_template()
+            
+            # 3. Reemplazar parámetros básicos
+            content = self.replace_basic_parameters(content)
+            
+            # 4. Reemplazar variables específicas de Bolivia
+            content = self.replace_country_variables(content)
+            
+            # 5. Insertar secciones de contenido
+            content = self.insert_content_sections(content)
+            
+            # 6. Generar datos del espectro Bolivia
+            print("📈 GENERANDO ESPECTRO BOLIVIA (CNBDS 2023)...")
+            self.generate_spectrum_data()
+            
+            # 7. Generar todos los graficos
+            self._force_generate_missing_plots()
+            
+            # 8. Actualizar imágenes y tablas existentes
+            print("\n📁 PROCESANDO IMÁGENES Y TABLAS BOLIVIA...")
+            self.actualize_images_and_tables()
+            
+            # 9. Insertar tablas en memoria
+            print("📊 INSERTANDO TABLAS BOLIVIA...")
+            content = self.insert_existing_tables_in_memory(content)
+            
+            # 10. Guardar archivo LaTeX
+            print("💾 GUARDANDO MEMORIA BOLIVIA...")
+            tex_file = self.save_memory(content, 'memoria_bolivia.tex')
+            
+            print(f"✅ Memoria Bolivia generada exitosamente: {tex_file}")
+            
+            # 11. Compilar a PDF si es posible
+            try:
+                print("\n🔄 COMPILANDO PDF BOLIVIA...")
+                self.compile_latex(tex_file, run_twice=True)
+                print("✅ PDF Bolivia generado exitosamente")
+            except Exception as pdf_error:
+                print(f"⚠️ Advertencia: Error compilando PDF Bolivia: {pdf_error}")
+                print("📄 Archivo LaTeX disponible, compile manualmente si es necesario")
+            
+            return tex_file
+            
+        except Exception as e:
+            error_msg = f"❌ Error generando memoria Bolivia: {e}"
+            print(error_msg)
+            raise Exception(error_msg)

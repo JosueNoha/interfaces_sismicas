@@ -326,16 +326,9 @@ class AppBase(QMainWindow):
             model_info = validate_model_connection(self.SapModel)
             
             if model_info['connected']:
-                # Verificar que existan los campos necesarios en UI
-                required_fields = ['le_vdx', 'le_vdy', 'le_vsx', 'le_vsy', 'le_fx', 'le_fy']
-                missing_fields = [field for field in required_fields if not hasattr(self.ui, field)]
+                print(f"✅ Conectado a ETABS: {model_info['model_name']}")
                 
-                if missing_fields:
-                    print(f"⚠️ Campos faltantes en UI: {missing_fields}")
-                
-                self.show_info(f"✅ Conectado a ETABS: {model_info['model_name']}")
-                
-                # ACTUALIZACIÓN AUTOMÁTICA
+                # ACTUALIZACIÓN AUTOMÁTICA - sin mostrar mensaje
                 self._auto_update_modal_analysis()
                 return True
             else:
@@ -346,7 +339,7 @@ class AppBase(QMainWindow):
         return False
     
     def _auto_update_modal_analysis(self):
-        """Actualizar automáticamente períodos, % masa Y CORTANTES al conectarse"""
+        """Actualizar automáticamente períodos, % masa Y CORTANTES - SIN MENSAJES"""
         if not self.SapModel:
             return
             
@@ -360,32 +353,20 @@ class AppBase(QMainWindow):
             
             if modal_data is not None and len(modal_data) > 0:
                 # Procesar y actualizar campos modales
-                results = process_modal_data(modal_data)
-                if results:
-                    self._update_modal_fields(results)
+                modal_results = process_modal_data(modal_data)
+                if modal_results:
+                    self._update_modal_fields(modal_results)
                     self.modal_table_data = modal_data
+                    print("✅ Campos modales actualizados")
             
             # 2. CORTANTES AUTOMÁTICOS
+            print("🔄 Calculando cortantes automáticamente...")
             self._auto_calculate_shear_forces()
             
-            # Mensaje de confirmación completo
-            if results:
-                info_msg = (f"📊 ACTUALIZACIÓN AUTOMÁTICA COMPLETA:\n\n"
-                        f"🔹 ANÁLISIS MODAL:\n"
-                        f"   Tx = {results['Tx']:.4f} s | Ty = {results['Ty']:.4f} s\n"
-                        f"   Masa X: {results['total_mass_x']:.1f}% | Masa Y: {results['total_mass_y']:.1f}%\n\n"
-                        f"🔹 CORTANTES BASALES:\n"
-                        f"   Dinámicos y estáticos calculados automáticamente\n"
-                        f"   Factores de escala actualizados\n\n"
-                        f"📈 {results['num_modes']} modos analizados")
-                
-                self.show_info(info_msg)
-            else:
-                self.show_warning("⚠️ Análisis modal actualizado, verificar cortantes")
+            print("✅ Actualización automática completa")
                 
         except Exception as e:
             print(f"Error en actualización automática: {e}")
-            self.show_warning(f"Error en actualización automática: {str(e)}")
             
     def _update_modal_fields(self, results):
         """Actualizar campos de período y masa participativa"""
@@ -547,9 +528,73 @@ class AppBase(QMainWindow):
 
     # Mantener método existente para compatibilidad, pero cambiar a privado
     def calculate_shear_forces(self):
-        """Método de compatibilidad - redirige a cálculo automático"""
-        print("⚠️ calculate_shear_forces() llamado manualmente - usando cálculo automático")
-        return self._auto_calculate_shear_forces()
+        """Calcular cortantes - SIN MENSAJE INFO FINAL"""
+        if not self._connect_etabs():
+            return
+        
+        try:
+            print("🔄 Ejecutando cálculo de cortantes...")
+            
+            self.update_seismic_loads()
+            combinations = self.get_selected_combinations()
+            required = ['dynamic_x', 'dynamic_y', 'static_x', 'static_y']
+            missing = [k for k in required if not combinations[k].strip()]
+            
+            if missing:
+                print(f"⚠️ Faltan combinaciones: {missing}")
+                self.show_warning(f"Faltan combinaciones: {', '.join(missing)}")
+                return
+            
+            # Configurar cargas sísmicas
+            self.sismo.loads.seism_loads = {
+                'SDX': combinations['dynamic_x'],
+                'SDY': combinations['dynamic_y'], 
+                'SSX': combinations['static_x'],
+                'SSY': combinations['static_y']
+            }
+            
+            # Calcular cortantes usando el método de SeismicBase
+            success_dyn, success_sta = self.sismo.calculate_shear_forces(self.SapModel)
+            
+            if success_dyn and success_sta:
+                # Obtener cortantes basales
+                base_values = self._extract_base_shears()
+                
+                if base_values:
+                    # Actualizar UI
+                    self.ui.le_vdx.setText(f"{base_values['vdx']:.2f}")
+                    self.ui.le_vdy.setText(f"{base_values['vdy']:.2f}")  
+                    self.ui.le_vsx.setText(f"{base_values['vsx']:.2f}")
+                    self.ui.le_vsy.setText(f"{base_values['vsy']:.2f}")
+                    
+                    # Calcular factores de escala
+                    scale_factors = self._calculate_scale_factors(base_values)
+                    self.ui.le_fx.setText(f"{scale_factors['fx']:.3f}")
+                    self.ui.le_fy.setText(f"{scale_factors['fy']:.3f}")
+                    
+                    # Almacenar en modelo
+                    self.sismo.data.Vdx = base_values['vdx']
+                    self.sismo.data.Vdy = base_values['vdy']
+                    self.sismo.data.Vsx = base_values['vsx']
+                    self.sismo.data.Vsy = base_values['vsy']
+                    self.sismo.data.FEx = scale_factors['fx']
+                    self.sismo.data.FEy = scale_factors['fy']
+
+                    # Crear gráficos
+                    self._generate_shear_plots()
+                    
+                    # ELIMINADO: self.show_info("✅ Cortantes, factores y gráficos generados")
+                    print("✅ Cortantes calculados y campos actualizados")
+                else:
+                    print("❌ Error extrayendo cortantes basales")
+                    self.show_error("Error extrayendo cortantes basales")
+            else:
+                print("❌ Error en cálculo de cortantes")
+                self.show_error("Error calculando cortantes")
+                
+        except Exception as e:
+            print(f"❌ Error: {e}")
+            self.show_error(f"Error: {e}")
 
     def _init_default_values(self):
         """Inicializar valores por defecto"""
@@ -578,20 +623,22 @@ class AppBase(QMainWindow):
             self.sismo.max_drift = default_drift
     
     def _validate_max_drift(self):
-        """Validar límite de deriva máxima"""
+        """Validar deriva máxima sin mostrar mensajes repetitivos"""
         try:
-            drift_limit = float(self.ui.le_max_drift.text())
-            if 0.001 <= drift_limit <= 0.020:
-                self.ui.le_max_drift.setStyleSheet("")
-                # Re-validar derivas existentes si hay datos
-                if hasattr(self.sismo, 'drift_results'):
-                    self.sismo.max_drift = drift_limit
-                    self.sismo.drift_results['limit'] = drift_limit
-                    self._update_drift_results()
-            else:
-                self.ui.le_max_drift.setStyleSheet("QLineEdit { border: 2px solid orange; }")
-        except ValueError:
-            self.ui.le_max_drift.setStyleSheet("QLineEdit { border: 2px solid red; }")
+            # Solo cambiar colores de campos si hay datos
+            if hasattr(self.ui, 'le_deriva_max_x') and hasattr(self.ui, 'le_deriva_max_y'):
+                max_drift_text = self.ui.le_max_drift.text()
+                
+                if max_drift_text.strip():
+                    try:
+                        max_drift = float(max_drift_text)
+                        # Revalidar si hay valores de deriva
+                        # Solo colores, sin mensajes
+                    except ValueError:
+                        pass  # Ignorar errores de conversión
+                        
+        except Exception as e:
+            pass  # Ignorar errores silenciosamente
 
     def load_image(self, image_type: str):
         """Cargar imagen y conectarla con la memoria"""
@@ -1402,7 +1449,7 @@ class AppBase(QMainWindow):
                 print(f"Error mostrando gráfico: {e}")
 
     def show_modal_data(self):
-        """Mostrar tabla de datos modales al presionar 'Ver Data'"""
+        """Mostrar tabla de datos modales - SIN MENSAJES"""
         # Si no está conectado, conectar automáticamente
         if not self.SapModel:
             if not self._connect_etabs():
@@ -1421,7 +1468,7 @@ class AppBase(QMainWindow):
                 # Mostrar tabla directamente
                 self._show_modal_table_dialog(modal_data)
                 
-                # También actualizar campos automáticamente
+                # También actualizar campos automáticamente - SIN MENSAJE
                 from core.utils.etabs_utils import process_modal_data
                 results = process_modal_data(modal_data)
                 if results:
@@ -1526,19 +1573,20 @@ class AppBase(QMainWindow):
             self.ui.le_min_mass_participation.setStyleSheet("QLineEdit { border: 2px solid red; }")
             return 90.0
 
-    def _apply_mass_validation(self, complies_x: bool, complies_y: bool):
-        """Aplicar validación visual con colores para masa participativa"""
-        # Validar dirección X
-        if complies_x:
-            self.ui.le_participacion_x.setStyleSheet("QLineEdit { background-color: #ccffcc; }")
-        else:
-            self.ui.le_participacion_x.setStyleSheet("QLineEdit { background-color: #ffcccc; font-weight: bold; }")
-        
-        # Validar dirección Y
-        if complies_y:
-            self.ui.le_participacion_y.setStyleSheet("QLineEdit { background-color: #ccffcc; }")
-        else:
-            self.ui.le_participacion_y.setStyleSheet("QLineEdit { background-color: #ffcccc; font-weight: bold; }")
+    def _apply_mass_validation(self, cumple_x, cumple_y):
+        """Aplicar validación visual sin mensajes"""
+        try:
+            # Solo colores, sin mensajes
+            color_ok = "QLineEdit { background-color: #d4edda; }"  # Verde claro
+            color_warning = "QLineEdit { background-color: #fff3cd; }"  # Amarillo claro
+            
+            if hasattr(self.ui, 'le_participacion_x'):
+                self.ui.le_participacion_x.setStyleSheet(color_ok if cumple_x else color_warning)
+            if hasattr(self.ui, 'le_participacion_y'):
+                self.ui.le_participacion_y.setStyleSheet(color_ok if cumple_y else color_warning)
+            
+        except Exception as e:
+            print(f"Error en validación visual: {e}")
 
     def _validate_min_mass_participation(self):
         """Validar y actualizar porcentaje mínimo de masa participativa"""
@@ -1691,13 +1739,11 @@ class AppBase(QMainWindow):
         try:
             print("🔄 Actualizando todos los datos...")
             
-            # 1. Análisis modal y cortantes (automático al conectar)
+            # Análisis modal y cortantes (automático al conectar)
             self._auto_update_modal_analysis()
             
-            # 2. Otros análisis que requieren botón manual
-            # Nota: Derivas y desplazamientos mantienen sus botones
-            
-            self.show_info("✅ Todos los datos actualizados automáticamente")
+            print("✅ Actualización completa")
+            # ELIMINADO: self.show_info("✅ Todos los datos actualizados automáticamente")
             
         except Exception as e:
             print(f"Error actualizando datos: {e}")

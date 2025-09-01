@@ -242,6 +242,39 @@ def get_load_combinations(SapModel, seismic_only=False):
         return []
 
 
+def set_envelopes_for_display(SapModel, set_envelopes=True):
+    """Configurar envolventes para visualización de resultados"""
+    try:
+        IsUserBaseReactionLocation = False
+        UserBaseReactionX = 0
+        UserBaseReactionY = 0
+        UserBaseReactionZ = 0
+        IsAllModes = True
+        StartMode = 0
+        EndMode = 0
+        IsAllBucklingModes = True
+        StartBucklingMode = 0
+        EndBucklingMode = 0
+        MultistepStatic = 1 if set_envelopes else 2
+        NonlinearStatic = 1 if set_envelopes else 2
+        ModalHistory = 1
+        DirectHistory = 1
+        Combo = 2
+        
+        SapModel.DatabaseTables.SetOutputOptionsForDisplay(
+            IsUserBaseReactionLocation, UserBaseReactionX,
+            UserBaseReactionY, UserBaseReactionZ, IsAllModes,
+            StartMode, EndMode, IsAllBucklingModes, StartBucklingMode,
+            EndBucklingMode, MultistepStatic, NonlinearStatic,
+            ModalHistory, DirectHistory, Combo
+        )
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error configurando envolventes: {e}")
+        return False
+
 # Funciones específicas para obtener datos comunes
 
 def get_story_data(SapModel):

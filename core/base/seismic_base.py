@@ -103,18 +103,6 @@ class SeismicBase:
             self.FEx = 0.0
             self.FEy = 0.0
 
-    def calculate_shear_forces(self, SapModel):
-        """Método manual para calcular cortantes - CONECTA SI ES NECESARIO"""
-        # Solo conectar si no está conectado
-        if not self.SapModel:
-            if not self._connect_etabs():
-                return
-        
-        # Usar método directo que no causa bucle
-        success = self._calculate_shear_forces_direct()
-        
-        if not success:
-            self.show_error("Error calculando cortantes")
 
     def _create_shear_figure(self, table, sx, sy, analysis_type):
         """Crear figura de cortantes siguiendo lógica original"""
@@ -123,7 +111,6 @@ class SeismicBase:
         from core.utils.unit_tool import Units
         
         try:
-            u = Units()
             # Configurar unidades por defecto si no existen
             u_f = getattr(self, 'u_f', 'tonf')
             u_h = getattr(self, 'u_h', 'm')
@@ -470,29 +457,30 @@ class SeismicBase:
             # Almacenar resultados para la UI con información del piso
             if hasattr(self, 'tables') and hasattr(self.tables, 'drifts'):
                 drift_data = self.tables.drifts
-                if drift_data is not None and not drift_data.empty:
-                    # Encontrar máximos y sus pisos correspondientes
-                    max_x = drift_data['Drifts_x'].max()
-                    max_y = drift_data['Drifts_y'].max()
-                    
-                    max_x_idx = drift_data['Drifts_x'].idxmax()
-                    max_y_idx = drift_data['Drifts_y'].idxmax()
-                    
-                    story_x = drift_data.loc[max_x_idx, 'Story'] if not drift_data.empty else 'N/A'
-                    story_y = drift_data.loc[max_y_idx, 'Story'] if not drift_data.empty else 'N/A'
-                    
-                    # Obtener límite desde la instancia o usar por defecto
-                    limit = getattr(self, 'max_drift', 0.007)
-                    
-                    self.drift_results = {
-                        'max_drift_x': max_x,
-                        'max_drift_y': max_y,
-                        'story_max_x': story_x,
-                        'story_max_y': story_y,
-                        'limit': limit,
-                        'complies_x': max_x <= limit,
-                        'complies_y': max_y <= limit,
-                        'complies_overall': (max_x <= limit) and (max_y <= limit)}
+                
+            if drift_data is not None and not drift_data.empty:
+                # Encontrar máximos y sus pisos correspondientes
+                max_x = drift_data['Drifts_x'].max()
+                max_y = drift_data['Drifts_y'].max()
+                
+                max_x_idx = drift_data['Drifts_x'].idxmax()
+                max_y_idx = drift_data['Drifts_y'].idxmax()
+                
+                story_x = drift_data.loc[max_x_idx, 'Story'] if not drift_data.empty else 'N/A'
+                story_y = drift_data.loc[max_y_idx, 'Story'] if not drift_data.empty else 'N/A'
+                
+                # Obtener límite desde la instancia o usar por defecto
+                limit = getattr(self, 'max_drift', 0.007)
+                
+                self.drift_results = {
+                    'max_drift_x': max_x,
+                    'max_drift_y': max_y,
+                    'story_max_x': story_x,
+                    'story_max_y': story_y,
+                    'limit': limit,
+                    'complies_x': max_x <= limit,
+                    'complies_y': max_y <= limit,
+                    'complies_overall': (max_x <= limit) and (max_y <= limit)}
                     
             # Recordar si se usó combo para poder regenerar después  
             self._used_drift_combo = use_displacement_combo
@@ -574,7 +562,6 @@ class SeismicBase:
 
     def _process_torsion_data(self, drift_table, cases_x, cases_y):
         """Procesar datos de torsión según norma"""
-        import numpy as np
         
         results = {
             'delta_max_x': 0.0, 'delta_prom_x': 0.0, 'ratio_x': 0.0,

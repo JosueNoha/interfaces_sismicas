@@ -27,11 +27,10 @@ class DataFrameDialog(QDialog):
     
     def __init__(self, parent, dataframe, title="Datos ETABS"):
         super().__init__(parent)
-        
         self.df = self._filter_columns(dataframe)
         
         self.setWindowTitle(title)
-        self.resize(800, 600)  # Más compacto
+        self.resize(600, 600)  # Más compacto
         
         self._setup_ui()
         self._populate_table()

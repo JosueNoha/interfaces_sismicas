@@ -142,7 +142,6 @@ class Ui_MainWindow(object):
         self.tabWidget.addTab(self.tab_seismic, "Análisis Sísmico")
         
         
-
     def _setup_modal_section(self, parent_layout):
         """Configurar sección de análisis modal"""
         self.group_modal = QtWidgets.QGroupBox("Análisis Modal")
@@ -169,14 +168,6 @@ class Ui_MainWindow(object):
         modal_layout.addWidget(self.label_ty, 1, 2)
         modal_layout.addWidget(self.le_ty, 1, 3)
         
-        # Campo para porcentaje mínimo de masa participativa
-        self.label_min_mass = QtWidgets.QLabel("% Masa Mín:")
-        self.le_min_mass_participation = QtWidgets.QLineEdit("90.0")
-        self.le_min_mass_participation.setMaximumWidth(60)
-        self.le_min_mass_participation.setToolTip("Porcentaje mínimo de masa participativa acumulada")
-
-        modal_layout.addWidget(self.label_min_mass, 1, 4)
-        modal_layout.addWidget(self.le_min_mass_participation, 1, 5)
 
         # Etiquetas para masa participativa acumulada
         self.label_participacion_x = QtWidgets.QLabel("Masa X (%):")

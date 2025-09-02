@@ -139,25 +139,30 @@ class AppBase(QMainWindow):
     # Descripciones y Ui
     def _update_description_ui(self, desc_type: str, description_text: str):
         """Actualizar elementos de UI relacionados con la descripción"""
-        ui_mappings = {
-            'descripcion': 'lb_descripcion',
-            'modelamiento': 'lb_modelamiento',
-            'cargas': 'lb_cargas'
-        }
-        
-        label_name = ui_mappings.get(desc_type)
-        if label_name and hasattr(self.ui, label_name):
-            label = getattr(self.ui, label_name)
+        # Usar el nuevo método de la interfaz si existe
+        if hasattr(self.ui, '_update_text_status'):
+            self.ui._update_text_status(desc_type, bool(description_text.strip()))
+        else:
+            # Fallback al método anterior por compatibilidad
+            ui_mappings = {
+                'descripcion': 'lb_descripcion',
+                'modelamiento': 'lb_modelamiento',
+                'cargas': 'lb_cargas'
+            }
             
-            if description_text.strip():
-                preview = description_text[:50] + "..." if len(description_text) > 50 else description_text
-                label.setText(f"✅ {preview}")
-                label.setStyleSheet("color: green;")
-                label.setToolTip(f"Descripción completa:\n{description_text}")
-            else:
-                label.setText("Sin Descripción")
-                label.setStyleSheet("color: gray;")
-                label.setToolTip("No hay descripción")
+            label_name = ui_mappings.get(desc_type)
+            if label_name and hasattr(self.ui, label_name):
+                label = getattr(self.ui, label_name)
+                
+                if description_text.strip():
+                    preview = description_text[:50] + "..." if len(description_text) > 50 else description_text
+                    label.setText(f"✅ {preview}")
+                    label.setStyleSheet("color: green;")
+                    label.setToolTip(f"Descripción completa:\n{description_text}")
+                else:
+                    label.setText("Sin Descripción")
+                    label.setStyleSheet("color: gray;")
+                    label.setToolTip("No hay descripción")
     
     def get_project_data(self):
         """Obtener datos del proyecto desde interfaz"""
@@ -185,8 +190,12 @@ class AppBase(QMainWindow):
         )
         
         if file_path:
+            # Guardar path en el objeto sismo
             self.sismo.urls_imagenes[image_type] = file_path
-            print(f"✅ Imagen {image_type} cargada: {Path(file_path).name}")
+            
+            self.ui._update_image_status(image_type, file_path)
+            
+            print(f"✅ Imagen {image_type} cargada: {file_path}")
 
     def open_description_dialog(self, desc_type: str):
         """Abrir diálogo de descripción con plantilla automática"""

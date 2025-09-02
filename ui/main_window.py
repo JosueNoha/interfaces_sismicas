@@ -35,6 +35,45 @@ class Ui_MainWindow(object):
         
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
+        
+    def _connect_memory_signals(self):
+        """Conectar señales de la pestaña de memoria"""
+        
+        # Conexiones para carga de imágenes
+        self.ui.b_portada.clicked.connect(lambda: self.load_image('portada'))
+        self.ui.b_planta.clicked.connect(lambda: self.load_image('planta'))
+        self.ui.b_3D.clicked.connect(lambda: self.load_image('3d'))
+        self.ui.b_defX.clicked.connect(lambda: self.load_image('defX'))
+        self.ui.b_defY.clicked.connect(lambda: self.load_image('defY'))
+        
+        # Conexiones para descripciones
+        self.ui.b_descripcion.clicked.connect(lambda: self.open_description_dialog('descripcion'))
+        self.ui.b_modelamiento.clicked.connect(lambda: self.open_description_dialog('modelamiento'))
+        self.ui.b_cargas.clicked.connect(lambda: self.open_description_dialog('cargas'))
+        
+    def get_memory_sections_status(self):
+        """Obtener estado de las secciones de memoria (activadas/desactivadas)"""
+        return {
+            'portada': self.ui.cb_portada.isChecked(),
+            'descripcion_estructura': self.ui.cb_desc_estructura.isChecked(),
+            'criterios_modelamiento': self.ui.cb_criterios.isChecked(),
+            'descripcion_cargas': self.ui.cb_cargas.isChecked(),
+            'modos_principales': self.ui.cb_modos.isChecked()
+        }
+        
+    def initialize_memory_defaults(self):
+        """Inicializar valores por defecto de la memoria"""
+        # Establecer textos por defecto usando las descripciones actuales
+        if hasattr(self.sismo, 'descriptions'):
+            descriptions = self.sismo.descriptions
+            
+            # Actualizar estados de texto si hay contenido por defecto
+            if descriptions.get('descripcion', '').strip():
+                self.ui._update_text_status('descripcion', True)
+            if descriptions.get('modelamiento', '').strip():
+                self.ui._update_text_status('modelamiento', True)  
+            if descriptions.get('cargas', '').strip():
+                self.ui._update_text_status('cargas', True)
 
     def _setup_header(self):
         """Configurar header con título"""
@@ -458,9 +497,10 @@ class Ui_MainWindow(object):
         torsion_layout.addWidget(self.le_torsion_limit, 0, 5)
         
         parent_layout.addWidget(self.group_torsion)
-
+        
+        
     def _setup_memory_tab(self):
-        """Tab de memoria de cálculo"""
+        """Tab de memoria de cálculo con secciones organizadas"""
         self.tab_memory = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(self.tab_memory)
         
@@ -469,11 +509,12 @@ class Ui_MainWindow(object):
         scroll_widget = QtWidgets.QWidget()
         scroll_layout = QtWidgets.QVBoxLayout(scroll_widget)
         
-        # Imágenes
-        self._setup_images_section(scroll_layout)
-        
-        # Descripciones
-        self._setup_descriptions_section(scroll_layout)
+        # Secciones de memoria organizadas
+        self._setup_portada_section(scroll_layout)
+        self._setup_descripcion_estructura_section(scroll_layout)
+        self._setup_criterios_modelamiento_section(scroll_layout)
+        self._setup_descripcion_cargas_section(scroll_layout)
+        self._setup_modos_principales_section(scroll_layout)
         
         # Configurar scroll
         scroll.setWidget(scroll_widget)
@@ -481,76 +522,251 @@ class Ui_MainWindow(object):
         layout.addWidget(scroll)
         
         self.tabWidget.addTab(self.tab_memory, "Memoria")
-
-    def _setup_images_section(self, parent_layout):
-        """Configurar sección de imágenes"""
-        self.group_images = QtWidgets.QGroupBox("Imágenes del Proyecto")
-        images_layout = QtWidgets.QGridLayout(self.group_images)
         
-        # Portada
-        self.label_portada = QtWidgets.QLabel("Portada:")
+    
+    def _setup_portada_section(self, parent_layout):
+        """Sección de Portada"""
+        self.group_portada = QtWidgets.QGroupBox()
+        portada_layout = QtWidgets.QVBoxLayout(self.group_portada)
+        
+        # Checkbox para incluir sección
+        content_layout = QtWidgets.QHBoxLayout()
+        self.label_portada = QtWidgets.QLabel("Imagen de Portada:")
         self.b_portada = QtWidgets.QPushButton("Cargar Imagen")
-        images_layout.addWidget(self.label_portada, 0, 0)
-        images_layout.addWidget(self.b_portada, 0, 1)
+        self.lb_portada_status = QtWidgets.QLabel("Imagen por defecto")
+        self.lb_portada_status.setStyleSheet("color: gray;")
+            
         
-        # Planta
-        self.label_planta = QtWidgets.QLabel("Planta Típica:")
-        self.b_planta = QtWidgets.QPushButton("Cargar Imagen")
-        images_layout.addWidget(self.label_planta, 0, 2)
-        images_layout.addWidget(self.b_planta, 0, 3)
+        content_layout.addWidget(self.label_portada)
+        content_layout.addWidget(self.b_portada)
+        content_layout.addWidget(self.lb_portada_status)
+        content_layout.addStretch()
+        portada_layout.addLayout(content_layout)
         
-        # 3D
+        parent_layout.addWidget(self.group_portada)
+
+    def _setup_descripcion_estructura_section(self, parent_layout):
+        """Sección de Descripción de la Estructura"""
+        self.group_desc_estructura = QtWidgets.QGroupBox()
+        desc_layout = QtWidgets.QVBoxLayout(self.group_desc_estructura)
+        
+        # Checkbox para incluir sección
+        checkbox_layout = QtWidgets.QHBoxLayout()
+        self.cb_desc_estructura = QtWidgets.QCheckBox("Descripción de la Estructura")
+        self.cb_desc_estructura.setChecked(False)
+        self.cb_desc_estructura.setEnabled(False)
+        checkbox_layout.addWidget(self.cb_desc_estructura)
+        checkbox_layout.addStretch()
+        desc_layout.addLayout(checkbox_layout)
+        
+        # Contenido de la sección
+        content_layout = QtWidgets.QHBoxLayout()
+        self.label_desc_estructura = QtWidgets.QLabel("Descripción:")
+        self.b_descripcion = QtWidgets.QPushButton("Agregar Descripción")
+        self.lb_descripcion = QtWidgets.QLabel("Sin texto")
+        self.lb_descripcion.setStyleSheet("color: gray;")
+        
+        content_layout.addWidget(self.label_desc_estructura)
+        content_layout.addWidget(self.b_descripcion)
+        content_layout.addWidget(self.lb_descripcion)
+        content_layout.addStretch()
+        desc_layout.addLayout(content_layout)
+        
+        parent_layout.addWidget(self.group_desc_estructura)
+
+    def _setup_criterios_modelamiento_section(self, parent_layout):
+        """Sección de Criterios de Modelamiento"""
+        self.group_criterios = QtWidgets.QGroupBox()
+        criterios_layout = QtWidgets.QVBoxLayout(self.group_criterios)
+        
+        # Checkbox para incluir sección
+        checkbox_layout = QtWidgets.QHBoxLayout()
+        self.cb_criterios = QtWidgets.QCheckBox("Criterios de Modelamiento")
+        self.cb_criterios.setChecked(False)
+        self.cb_criterios.setEnabled(False)
+        checkbox_layout.addWidget(self.cb_criterios)
+        checkbox_layout.addStretch()
+        criterios_layout.addLayout(checkbox_layout)
+        
+        # Contenido de la sección - Texto
+        text_layout = QtWidgets.QHBoxLayout()
+        self.label_modelamiento = QtWidgets.QLabel("Descripción:")
+        self.b_modelamiento = QtWidgets.QPushButton("Agregar Descripción")
+        self.lb_modelamiento = QtWidgets.QLabel("Sin texto")
+        self.lb_modelamiento.setStyleSheet("color: gray;")
+        
+        text_layout.addWidget(self.label_modelamiento)
+        text_layout.addWidget(self.b_modelamiento)
+        text_layout.addWidget(self.lb_modelamiento)
+        text_layout.addStretch()
+        criterios_layout.addLayout(text_layout)
+        
+        # Contenido de la sección - Imágenes
+        images_layout = QtWidgets.QGridLayout()
+        
+        # Captura 3D
         self.label_3d = QtWidgets.QLabel("Captura 3D:")
         self.b_3D = QtWidgets.QPushButton("Cargar Imagen")
-        images_layout.addWidget(self.label_3d, 1, 0)
-        images_layout.addWidget(self.b_3D, 1, 1)
+        self.lb_3d_status = QtWidgets.QLabel("Sin imagen")
+        self.lb_3d_status.setStyleSheet("color: gray;")
         
-        # Deformadas
-        self.label_defx = QtWidgets.QLabel("Deformada X:")
-        self.b_defX = QtWidgets.QPushButton("Cargar Imagen")
-        images_layout.addWidget(self.label_defx, 1, 2)
-        images_layout.addWidget(self.b_defX, 1, 3)
+        images_layout.addWidget(self.label_3d, 0, 0)
+        images_layout.addWidget(self.b_3D, 0, 1)
+        images_layout.addWidget(self.lb_3d_status, 0, 2)
         
-        self.label_defy = QtWidgets.QLabel("Deformada Y:")
-        self.b_defY = QtWidgets.QPushButton("Cargar Imagen")
-        images_layout.addWidget(self.label_defy, 2, 0)
-        images_layout.addWidget(self.b_defY, 2, 1)
+        # Planta Típica
+        self.label_planta = QtWidgets.QLabel("Planta Típica:")
+        self.b_planta = QtWidgets.QPushButton("Cargar Imagen")
+        self.lb_planta_status = QtWidgets.QLabel("Sin imagen")
+        self.lb_planta_status.setStyleSheet("color: gray;")
         
-        parent_layout.addWidget(self.group_images)
+        images_layout.addWidget(self.label_planta, 1, 0)
+        images_layout.addWidget(self.b_planta, 1, 1)
+        images_layout.addWidget(self.lb_planta_status, 1, 2)
+        
+        criterios_layout.addLayout(images_layout)
+        
+        parent_layout.addWidget(self.group_criterios)
 
-    def _setup_descriptions_section(self, parent_layout):
-        """Configurar sección de descripciones"""
-        self.group_descriptions = QtWidgets.QGroupBox("Descripciones")
-        desc_layout = QtWidgets.QGridLayout(self.group_descriptions)
+    def _setup_descripcion_cargas_section(self, parent_layout):
+        """Sección de Descripción de Cargas"""
+        self.group_cargas = QtWidgets.QGroupBox()
+        cargas_layout = QtWidgets.QVBoxLayout(self.group_cargas)
         
-        # Descripción de estructura
-        self.label_desc_estructura = QtWidgets.QLabel("Descripción de la Estructura:")
-        self.b_descripcion = QtWidgets.QPushButton("Agregar Descripción")
-        self.lb_descripcion = QtWidgets.QLabel("Sin Descripción")
+        # Checkbox para incluir sección
+        checkbox_layout = QtWidgets.QHBoxLayout()
+        self.cb_cargas = QtWidgets.QCheckBox("Descripción de Cargas")
+        self.cb_cargas.setChecked(False)
+        self.cb_cargas.setEnabled(False)
+        checkbox_layout.addWidget(self.cb_cargas)
+        checkbox_layout.addStretch()
+        cargas_layout.addLayout(checkbox_layout)
         
-        desc_layout.addWidget(self.label_desc_estructura, 0, 0)
-        desc_layout.addWidget(self.b_descripcion, 0, 1)
-        desc_layout.addWidget(self.lb_descripcion, 0, 2)
-        
-        # Criterios de modelamiento
-        self.label_modelamiento = QtWidgets.QLabel("Criterios de Modelamiento:")
-        self.b_modelamiento = QtWidgets.QPushButton("Agregar Descripción")
-        self.lb_modelamiento = QtWidgets.QLabel("Sin Descripción")
-        
-        desc_layout.addWidget(self.label_modelamiento, 1, 0)
-        desc_layout.addWidget(self.b_modelamiento, 1, 1)
-        desc_layout.addWidget(self.lb_modelamiento, 1, 2)
-        
-        # Descripción de cargas
-        self.label_cargas = QtWidgets.QLabel("Descripción de Cargas:")
+        # Contenido de la sección
+        content_layout = QtWidgets.QHBoxLayout()
+        self.label_cargas = QtWidgets.QLabel("Descripción:")
         self.b_cargas = QtWidgets.QPushButton("Agregar Descripción")
-        self.lb_cargas = QtWidgets.QLabel("Sin Descripción")
+        self.lb_cargas = QtWidgets.QLabel("Sin texto")
+        self.lb_cargas.setStyleSheet("color: gray;")
         
-        desc_layout.addWidget(self.label_cargas, 2, 0)
-        desc_layout.addWidget(self.b_cargas, 2, 1)
-        desc_layout.addWidget(self.lb_cargas, 2, 2)
+        content_layout.addWidget(self.label_cargas)
+        content_layout.addWidget(self.b_cargas)
+        content_layout.addWidget(self.lb_cargas)
+        content_layout.addStretch()
+        cargas_layout.addLayout(content_layout)
         
-        parent_layout.addWidget(self.group_descriptions)
+        parent_layout.addWidget(self.group_cargas)
+
+    def _setup_modos_principales_section(self, parent_layout):
+        """Sección de Modos Principales del Análisis Modal"""
+        self.group_modos = QtWidgets.QGroupBox()
+        modos_layout = QtWidgets.QVBoxLayout(self.group_modos)
+        
+        # Checkbox para incluir sección
+        checkbox_layout = QtWidgets.QHBoxLayout()
+        self.cb_modos = QtWidgets.QCheckBox("Modos Principales del Análisis Modal")
+        self.cb_modos.setChecked(False)
+        self.cb_modos.setEnabled(False)
+        checkbox_layout.addWidget(self.cb_modos)
+        checkbox_layout.addStretch()
+        modos_layout.addLayout(checkbox_layout)
+        
+        # Contenido de la sección - Imágenes de modos
+        images_layout = QtWidgets.QGridLayout()
+        
+        # Modo Principal en X
+        self.label_defx = QtWidgets.QLabel("Modo Principal en X:")
+        self.b_defX = QtWidgets.QPushButton("Cargar Imagen")
+        self.lb_defx_status = QtWidgets.QLabel("Sin imagen")
+        self.lb_defx_status.setStyleSheet("color: gray;")
+        
+        images_layout.addWidget(self.label_defx, 0, 0)
+        images_layout.addWidget(self.b_defX, 0, 1)
+        images_layout.addWidget(self.lb_defx_status, 0, 2)
+        
+        # Modo Principal en Y
+        self.label_defy = QtWidgets.QLabel("Modo Principal en Y:")
+        self.b_defY = QtWidgets.QPushButton("Cargar Imagen")
+        self.lb_defy_status = QtWidgets.QLabel("Sin imagen")
+        self.lb_defy_status.setStyleSheet("color: gray;")
+        
+        images_layout.addWidget(self.label_defy, 1, 0)
+        images_layout.addWidget(self.b_defY, 1, 1)
+        images_layout.addWidget(self.lb_defy_status, 1, 2)
+        
+        modos_layout.addLayout(images_layout)
+        
+        parent_layout.addWidget(self.group_modos)
+
+    def _toggle_section_content(self, widgets, enabled):
+        """Habilitar/deshabilitar widgets de una sección"""
+        for widget in widgets:
+            widget.setEnabled(enabled)
+            
+    def _update_image_status(self, image_type: str, file_path: str = None):
+        """Actualizar estado visual de carga de imagen"""
+        status_mappings = {
+            'portada': self.lb_portada_status,
+            'planta': self.lb_planta_status,
+            '3d': self.lb_3d_status,
+            'defX': self.lb_defx_status,
+            'defY': self.lb_defy_status
+        }
+        
+        status_label = status_mappings.get(image_type)
+        if status_label:
+            if file_path:
+                filename = file_path.split('/')[-1] if '/' in file_path else file_path.split('\\')[-1]
+                status_label.setText(f"✅ {filename}")
+                status_label.setStyleSheet("color: green;")
+            else:
+                default_text = "Imagen por defecto" if image_type == 'portada' else "Sin imagen"
+                status_label.setText(default_text)
+                status_label.setStyleSheet("color: gray;")
+                
+        # ✅ Verificar si ambas imágenes de modos están cargadas
+        if image_type in ['defX', 'defY'] and hasattr(self, 'cb_modos'):
+            defx_loaded = hasattr(self, 'lb_defx_status') and "✅" in self.lb_defx_status.text()
+            defy_loaded = hasattr(self, 'lb_defy_status') and "✅" in self.lb_defy_status.text()
+            
+            if defx_loaded and defy_loaded:
+                self.cb_modos.setEnabled(True)
+                self.cb_modos.setChecked(True)
+            else:
+                self.cb_modos.setEnabled(False)
+                self.cb_modos.setChecked(False)
+
+    def _update_text_status(self, text_type: str, has_text: bool = True):
+        """Actualizar estado visual de carga de texto"""
+        status_mappings = {
+            'descripcion': self.lb_descripcion,
+            'modelamiento': self.lb_modelamiento,
+            'cargas': self.lb_cargas
+        }
+        
+        checkbox_mappings = {
+            'descripcion': self.cb_desc_estructura,
+            'modelamiento': self.cb_criterios,
+            'cargas': self.cb_cargas
+        }
+        
+        status_label = status_mappings.get(text_type)
+        checkbox = checkbox_mappings.get(text_type)
+        
+        if status_label:
+            if has_text:
+                status_label.setText("✅ Texto cargado")
+                status_label.setStyleSheet("color: green;")
+                if checkbox:
+                    checkbox.setEnabled(True)
+                    checkbox.setChecked(True)
+            else:
+                status_label.setText("Sin texto")
+                status_label.setStyleSheet("color: gray;")
+                if checkbox:
+                    checkbox.setEnabled(False)
+                    checkbox.setChecked(False)
+
 
     def _setup_bottom_buttons(self):
         """Configurar botones inferiores"""

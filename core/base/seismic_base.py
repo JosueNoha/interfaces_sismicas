@@ -16,6 +16,11 @@ class SeismicBase:
         # Parámetros de deriva por defecto
         self.max_drift = 0.007  # Límite por defecto para concreto armado
         self.is_regular = True  # Regularidad estructural por defecto
+
+        # Unidades por defecto
+        self.u_f = 'tonf'
+        self.u_d = 'mm'
+        self.u_h = 'm'
         
         # Propiedades comunes del proyecto
         self.proyecto = "Edificación de Concreto Reforzado"
@@ -109,15 +114,16 @@ class SeismicBase:
         from matplotlib.figure import Figure
         import numpy as np
         from core.utils.unit_tool import Units
+        u = Units()
         
         try:
             # Configurar unidades por defecto si no existen
             u_f = getattr(self, 'u_f', 'tonf')
             u_h = getattr(self, 'u_h', 'm')
-            
             # Separar cortantes X e Y
             shear_x_data = table[table['OutputCase'].isin(sx)]['V'].values
             shear_y_data = table[table['OutputCase'].isin(sy)]['V'].values
+
             
             # Agregar cero en la base
             shear_x = np.append([0.], np.abs(shear_x_data))
@@ -132,6 +138,11 @@ class SeismicBase:
                 heights_extended.extend([h, h])
             heights_extended.append(0)
             heights_extended = np.array(heights_extended)
+            
+            # Convertir unidades
+            shear_x *= u.to_unit(1,u_f)
+            shear_y *= u.to_unit(1,u_f)
+            heights_extended *= u.to_unit(1,u_h)
             
             # Crear figura
             fig = Figure(figsize=(6, 4), dpi=100)
@@ -264,10 +275,6 @@ class SeismicBase:
             self.disp_y = disp_y_raw  
             self.disp_h = heights
             
-            # Crear gráfico
-            self.fig_displacements = self._create_displacement_figure(
-                disp_x_raw, disp_y_raw, heights, use_displacement_combo
-            )
             
             # Almacenar resultados para la UI
             if hasattr(self, 'tables') and hasattr(self.tables, 'displacements'):
@@ -313,15 +320,16 @@ class SeismicBase:
     def _create_displacement_figure(self, disp_x, disp_y, heights, use_combo):
         """Crear figura de desplazamientos"""
         from matplotlib.figure import Figure
+        from core.utils.unit_tool import Units
+        u = Units()
         
         u_d = getattr(self, 'u_d', 'mm')
         u_h = getattr(self, 'u_h', 'm')
         
         # Convertir a unidades de display
-        unit_dict = {'mm': 1.0, 'cm': 0.1, 'm': 0.001}
-        disp_x_plot = disp_x / unit_dict.get(u_d, 1.0)
-        disp_y_plot = disp_y / unit_dict.get(u_d, 1.0)
-        heights_plot = heights / unit_dict.get(u_h, 1000.0)
+        disp_x_plot = u.to_unit(disp_x,u_d)
+        disp_y_plot = u.to_unit(disp_y,u_d)
+        heights_plot = u.to_unit(heights,u_h)
         
         fig = Figure(figsize=(6,4), dpi=100)
         ax = fig.add_subplot(111)
@@ -494,15 +502,15 @@ class SeismicBase:
     def _create_drift_figure(self, drift_x, drift_y, heights, use_combo):
         """Crear figura de desplazamientos"""
         from matplotlib.figure import Figure
+        from core.utils.unit_tool import Units
+        u = Units()
         
-        u_d = getattr(self, 'u_d', 'mm')
         u_h = getattr(self, 'u_h', 'm')
         
         # Convertir a unidades de display
-        unit_dict = {'mm': 1.0, 'cm': 0.1, 'm': 0.001}
-        disp_x_plot = drift_x / unit_dict.get(u_d, 1.0)
-        disp_y_plot = drift_y / unit_dict.get(u_d, 1.0)
-        heights_plot = heights / unit_dict.get(u_h, 1000.0)
+        disp_x_plot = drift_x
+        disp_y_plot = drift_y
+        heights_plot = u.to_unit(heights,u_h)
         
         fig = Figure(figsize=(6,4), dpi=100)
         ax = fig.add_subplot(111)
@@ -522,122 +530,104 @@ class SeismicBase:
         ax.scatter(disp_x_plot, heights_plot, color='r', marker='x')
         ax.scatter(disp_y_plot, heights_plot, color='b', marker='x')
         
-        ax.set_xlabel(f'Desplazamientos ({u_d})')
+        ax.set_xlabel(f'Desplazamientos Relativos')
         ax.set_ylabel(f'h ({u_h})')
         ax.grid(linestyle='dotted', linewidth=1)
         ax.legend()
         
         return fig
 
-    def calculate_torsional_irregularity(self, SapModel, cases_x, cases_y):
-        """Calcular irregularidad torsional desde ETABS"""
+    def calculate_torsional_irregularity(self, SapModel, cases_x, cases_y, half_condition=True, ratio_max=1.2):
+        """
+        Calcula irregularidad torsional según norma
+        
+        Parameters
+        ----------
+        SapModel : objeto ETABS
+        cases_x : list - Casos de carga en dirección X
+        cases_y : list - Casos de carga en dirección Y  
+        half_condition : bool - Aplicar condición Dmax/2
+        ratio_max : float - Ratio máximo permitido
+        
+        Returns
+        -------
+        bool : True si el cálculo fue exitoso
+        """
         try:
-            from core.utils.etabs_utils import set_units, get_table
-            
-            set_units(SapModel, 'Ton_mm_C')
-            
             # Configurar casos para visualización
             all_cases = cases_x + cases_y
             SapModel.DatabaseTables.SetLoadCasesSelectedForDisplay(all_cases)
             SapModel.DatabaseTables.SetLoadCombinationsSelectedForDisplay(all_cases)
+            from core.utils.etabs_utils import get_table, set_units
+            from core.utils.unit_tool import Units
+            set_units(SapModel, 'Ton_mm_C')
             
-            # Obtener datos de derivas por diafragma
+            # Obtener tabla de derivas
             success, drift_table = get_table(SapModel, 'Diaphragm Max Over Avg Drifts')
-            
             if not success or drift_table is None:
                 return False
             
-            # Procesar datos de torsión
-            torsion_results = self._process_torsion_data(drift_table, cases_x, cases_y)
-            
-            # Almacenar resultados
-            self.torsion_results = torsion_results
-            self.torsion_table_data = self._create_torsion_detail_table(drift_table, cases_x, cases_y, torsion_results)
+            # Procesar y almacenar resultados
+            drift_table[['Max Drift', 'Avg Drift', 'Ratio']] = \
+                drift_table[['Max Drift', 'Avg Drift', 'Ratio']].astype(float)
+            drift_table = drift_table[
+                (drift_table['OutputCase'].isin(cases_x) & 
+                drift_table['Item'].str.contains('x',case=False)) |
+                (drift_table['OutputCase'].isin(cases_y) & 
+                drift_table['Item'].str.contains('y',case=False))
+                ]
+            torsion_table_data = drift_table[
+                ['Story', 'OutputCase', 'Item', 'Max Drift', 'Avg Drift', 'Ratio']].copy()
+            self.torsion_table_data = torsion_table_data
+            self.torsion_results = self._process_torsion_data(torsion_table_data, cases_x, cases_y, half_condition, ratio_max)
             
             return True
             
         except Exception as e:
             print(f"Error calculando irregularidad torsional: {e}")
             return False
-
-    def _process_torsion_data(self, drift_table, cases_x, cases_y):
-        """Procesar datos de torsión según norma"""
+        
+    def _process_torsion_data(self, drift_table, cases_x, cases_y, half_condition=True, ratio_max=1.2):
+        """Procesar datos de torsión con validaciones de norma"""
         
         results = {
             'delta_max_x': 0.0, 'delta_prom_x': 0.0, 'ratio_x': 0.0,
-            'delta_max_y': 0.0, 'delta_prom_y': 0.0, 'ratio_y': 0.0
+            'delta_max_y': 0.0, 'delta_prom_y': 0.0, 'ratio_y': 0.0,
+            'is_irregular_x': False, 'is_irregular_y': False
         }
         
         try:
-            # Filtrar datos por casos y dirección
-            drift_table['Max Drift'] = drift_table['Max Drift'].astype(float)
-            
-            # Procesar dirección X
-            x_data = drift_table[
-                (drift_table['OutputCase'].isin(cases_x)) & 
-                (drift_table['Item'].str.contains('X', case=False))
-            ]
-            
-            if not x_data.empty:
-                # Obtener deriva máxima y promedio por piso
-                max_drift_x = x_data.groupby('Story')['Max Drift'].max()
-                results['delta_max_x'] = max_drift_x.max() if len(max_drift_x) > 0 else 0.0
-                results['delta_prom_x'] = max_drift_x.mean() if len(max_drift_x) > 0 else 0.0
-                results['ratio_x'] = results['delta_max_x'] / results['delta_prom_x'] if results['delta_prom_x'] > 0 else 0.0
-            
-            # Procesar dirección Y
-            y_data = drift_table[
-                (drift_table['OutputCase'].isin(cases_y)) & 
-                (drift_table['Item'].str.contains('Y', case=False))
-            ]
-            
-            if not y_data.empty:
-                max_drift_y = y_data.groupby('Story')['Max Drift'].max()
-                results['delta_max_y'] = max_drift_y.max() if len(max_drift_y) > 0 else 0.0
-                results['delta_prom_y'] = max_drift_y.mean() if len(max_drift_y) > 0 else 0.0
-                results['ratio_y'] = results['delta_max_y'] / results['delta_prom_y'] if results['delta_prom_y'] > 0 else 0.0
-            
+            # Procesar por dirección
+            for direction, cases in [('x', cases_x), ('y', cases_y)]:
+                dir_data = drift_table[
+                    (drift_table['OutputCase'].isin(cases)) & 
+                    (drift_table['Item'].str.contains(direction, case=False))
+                ]
+                
+                if not dir_data.empty:
+                    idx_max = dir_data['Ratio'].idxmax()
+                    max_drift = dir_data['Max Drift'].loc[idx_max]
+                    avg_drift = dir_data['Avg Drift'].loc[idx_max]
+                    ratio = dir_data['Ratio'].loc[idx_max]
+                    
+                    results[f'delta_max_{direction}'] = max_drift
+                    results[f'delta_prom_{direction}'] = avg_drift
+                    results[f'ratio_{direction}'] = ratio
+                    
+                    # Evaluar irregularidad
+                    is_irregular = ratio > ratio_max
+                    if half_condition and hasattr(self, 'max_drift_x'):
+                        max_allowed = getattr(self, f'max_drift_{direction}', 0.007) / 2
+                        is_irregular = is_irregular and (max_drift >= max_allowed)
+                    
+                    results[f'is_irregular_{direction}'] = is_irregular
+                    
         except Exception as e:
             print(f"Error procesando datos de torsión: {e}")
         
         return results
     
-    def _create_torsion_detail_table(self, drift_table, cases_x, cases_y, results):
-        """Crear tabla detallada de torsión para mostrar en UI"""
-        import pandas as pd
-        
-        try:
-            # Filtrar y procesar datos para tabla detallada
-            x_data = drift_table[
-                (drift_table['OutputCase'].isin(cases_x)) & 
-                (drift_table['Item'].str.contains('X', case=False))
-            ][['Story', 'Item', 'Max Drift']].copy()
-            x_data['Direction'] = 'X'
-            
-            y_data = drift_table[
-                (drift_table['OutputCase'].isin(cases_y)) & 
-                (drift_table['Item'].str.contains('Y', case=False))
-            ][['Story', 'Item', 'Max Drift']].copy()
-            y_data['Direction'] = 'Y'
-            
-            # Combinar datos
-            combined = pd.concat([x_data, y_data], ignore_index=True)
-            combined['Max Drift'] = combined['Max Drift'].astype(float)
-            
-            # Agregar cálculos de irregularidad
-            combined['Delta_max'] = combined.groupby('Direction')['Max Drift'].transform('max')
-            combined['Delta_prom'] = combined.groupby('Direction')['Max Drift'].transform('mean')
-            combined['Ratio'] = combined['Delta_max'] / combined['Delta_prom']
-            
-            # Renombrar columnas para display
-            combined.columns = ['Piso', 'Item', 'Deriva', 'Dirección', 'Δ_max', 'Δ_prom', 'Relación']
-            
-            return combined
-            
-        except Exception as e:
-            print(f"Error creando tabla detallada: {e}")
-            return None
-
+    
     def _create_spectrum_figure(self, T, Sa, country='generic'):
         """Crear figura del espectro de respuesta"""
         from matplotlib.figure import Figure

@@ -27,7 +27,7 @@ class DataFrameDialog(QDialog):
     
     def __init__(self, parent, dataframe, title="Datos ETABS"):
         super().__init__(parent)
-        self.df = self._filter_columns(dataframe)
+        self.df = dataframe
         
         self.setWindowTitle(title)
         self.resize(600, 600)  # Más compacto
@@ -36,23 +36,32 @@ class DataFrameDialog(QDialog):
         self._populate_table()
         self._setup_connections()
     
-    def _filter_columns(self, dataframe):
-        """Filtrar solo las columnas relevantes"""
-        # Columnas que queremos mostrar
-        desired_columns = ['Mode', 'Period', 'UX', 'UY', 'RZ', 'SumUX', 'SumUY', 'SumRZ']
+    def _populate_table(self):
+        """Llenar tabla con datos - formateo genérico"""
+        self.table.setRowCount(len(self.df))
+        self.table.setColumnCount(len(self.df.columns))
         
-        # Verificar qué columnas existen en el DataFrame
-        available_columns = []
-        for col in desired_columns:
-            if col in dataframe.columns:
-                available_columns.append(col)
+        # Headers
+        headers = [str(col) for col in self.df.columns]
+        self.table.setHorizontalHeaderLabels(headers)
         
-        # Si no hay columna 'Mode', crearla
-        filtered_df = dataframe[available_columns].copy()
-        if 'Mode' not in filtered_df.columns:
-            filtered_df.insert(0, 'Mode', range(1, len(filtered_df) + 1))
+        # Datos con formateo automático
+        for i, (index, row) in enumerate(self.df.iterrows()):
+            for j, (col_name, value) in enumerate(row.items()):
+                if pd.isna(value):
+                    text = "N/A"
+                elif isinstance(value, float):
+                    # Formateo genérico para flotantes
+                    text = f"{value:.4f}"
+                else:
+                    text = str(value)
+                
+                item = QTableWidgetItem(text)
+                item.setTextAlignment(Qt.AlignCenter)
+                self.table.setItem(i, j, item)
         
-        return filtered_df
+        # Ajustar tabla
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
     
     def _setup_ui(self):
         """Configurar interfaz ultra simplificada"""

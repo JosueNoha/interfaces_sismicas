@@ -41,14 +41,10 @@ def set_units(SapModel, unit_system):
         unit_system (str): Sistema de unidades ('Ton_m_C', 'Ton_mm_C', 'kN_m_C', 'kN_mm_C')
     """
     unit_map = {
-        'Ton_m_C': 6,     # Tonf, m, C
-        'Ton_mm_C': 7,    # Tonf, mm, C
-        'kN_m_C': 3,      # kN, m, C
-        'kN_mm_C': 4,     # kN, mm, C
-        'kgf_m_C': 5,     # kgf, m, C
-        'kgf_mm_C': 8,    # kgf, mm, C
-        'lb_in_F': 1,     # lb, in, F
-        'lb_ft_F': 2,     # lb, ft, F
+        'Ton_m_C': 12,     # Tonf, m, C
+        'Ton_mm_C': 11,    # Tonf, mm, C
+        'N_m_C': 10,      # kN, m, C
+        'kgf_cm_C': 14,     # kgf, m, C
     }
     
     if unit_system in unit_map:

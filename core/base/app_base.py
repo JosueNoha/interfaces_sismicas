@@ -37,7 +37,6 @@ class AppBase(QMainWindow):
         
         # Configurar funcionalidad común
         self._setup_icon()
-        self._connect_common_signals()
         self._init_default_values()
         
         # Actualizar widgets al inicio
@@ -47,6 +46,9 @@ class AppBase(QMainWindow):
         self._update_displacement_results()
         self._update_drift_results()
         self._update_torsion_results()
+        
+        # Conectar señales
+        self._connect_common_signals()
 
     def _setup_icon(self):
         """Configurar icono de la aplicación"""
@@ -476,12 +478,13 @@ class AppBase(QMainWindow):
                 self.process_modal_data()
             
             if self.modal_data is not None and self.modal_results is not None:
+                filtered_modal_data = self._filter_modal_columns(self.modal_data)
                 # Mostrar tabla directamente
                 from shared.dialogs.table_dialog import show_dataframe_dialog
                 
                 show_dataframe_dialog(
                     parent=self,
-                    dataframe=self.modal_data,
+                    dataframe=filtered_modal_data,
                     title="Análisis Modal - Períodos y Masas Participativas"
                 )
         
@@ -491,6 +494,22 @@ class AppBase(QMainWindow):
         except Exception as e:
             print(f"Error obteniendo datos modales: {e}")
             self.show_warning(f"Error obteniendo datos modales: {str(e)}")
+            
+    def _filter_modal_columns(self, dataframe):
+        """Filtrar columnas específicas para análisis modal"""
+        desired_columns = ['Mode', 'Period', 'UX', 'UY', 'RZ', 'SumUX', 'SumUY', 'SumRZ']
+        
+        # Verificar columnas disponibles
+        available_columns = [col for col in desired_columns if col in dataframe.columns]
+        
+        # Filtrar DataFrame
+        filtered_df = dataframe[available_columns].copy()
+        
+        # Agregar columna Mode si no existe
+        if 'Mode' not in filtered_df.columns:
+            filtered_df.insert(0, 'Mode', range(1, len(filtered_df) + 1))
+    
+        return filtered_df
               
     def _update_modal_fields(self, results):
         """Actualizar campos modales y aplicar validación visual consolidada"""
@@ -584,14 +603,16 @@ class AppBase(QMainWindow):
             
             # Obtener datos directamente de ETABS
             from core.utils.etabs_utils import get_story_forces, get_story_data, set_units
-            set_units('Ton_m_C')
+            set_units(self.SapModel,'Ton_m_C')
             story_forces = get_story_forces(self.SapModel)
             story_data = get_story_data(self.SapModel)
             
             if story_forces is None:
                 self.show_error("No se pudieron obtener fuerzas de piso")
                 return False
- 
+            
+            story_forces = story_forces.merge(story_data,on='Story',sort=False)
+            
             shear_dynamic = story_forces[story_forces['OutputCase'].isin(dynamic_cases)].copy()
             shear_static = story_forces[story_forces['OutputCase'].isin(static_cases)].copy()
             
@@ -608,15 +629,14 @@ class AppBase(QMainWindow):
                 shear_static['OutputCase'].isin(x_cases),
                 shear_static['VX'],shear_static['VY'])
             
-            shear_dynamic = shear_dynamic.merge(story_data,on='Story',sort=False)
-            shear_static = shear_static.merge(story_data,on='Story',sort=False)
 
-            
             shear_dynamic = shear_dynamic[['Story','Height','Location','OutputCase','V']]
             shear_dynamic['Height'] *= u.m
             shear_dynamic['V'] *= u.tonf
             shear_static = shear_static[['Story','Height','Location','OutputCase','V']]
-            
+            shear_static['Height'] *= u.m
+            shear_static['V'] *= u.tonf
+
             self.sismo.shear_dynamic = shear_dynamic
             self.sismo.shear_static = shear_static
             
@@ -644,10 +664,9 @@ class AppBase(QMainWindow):
             y_cases = [combinations['dynamic_y'], combinations['static_y']]
             # Extraer valores por dirección
             def get_shear_value(df, direction):
-                import numpy as np
                 cases = x_cases if direction == 'X' else y_cases
                 filtered = df[df['OutputCase'].isin(cases)].copy()
-                return abs(filtered['V'].iloc[0]) if len(filtered) > 0 else 0.0
+                return abs(filtered['V'].iloc[-1]) if len(filtered) > 0 else 0.0
             
             return {
                 'vdx': get_shear_value(dyn_base, 'X'),
@@ -662,14 +681,16 @@ class AppBase(QMainWindow):
 
     def _update_shear_displays(self):
         """Actualizar campos de cortantes y factores"""
+        from core.config.constants import DEFAULT_UNITS
         try:
             
             base_values = self._extract_base_shears()
             # Actualizar campos de cortantes
-            self.ui.le_vdx.setText(f"{base_values['vdx']:.2f}")
-            self.ui.le_vdy.setText(f"{base_values['vdy']:.2f}")
-            self.ui.le_vsx.setText(f"{base_values['vsx']:.2f}")
-            self.ui.le_vsy.setText(f"{base_values['vsy']:.2f}")
+            u_f = self.sismo.u_f
+            self.ui.le_vdx.setText(f"{u.to_unit(base_values['vdx'],u_f):.2f} ({u_f})")
+            self.ui.le_vdy.setText(f"{u.to_unit(base_values['vdy'],u_f):.2f} ({u_f})")
+            self.ui.le_vsx.setText(f"{u.to_unit(base_values['vsx'],u_f):.2f} ({u_f})")
+            self.ui.le_vsy.setText(f"{u.to_unit(base_values['vsy'],u_f):.2f} ({u_f})")
             
             # Calcular factores de escala
             scale_factors = self._calculate_scale_factors(base_values)
@@ -756,7 +777,7 @@ class AppBase(QMainWindow):
 
     def _show_shear_plot(self,plot_type):
         """Mostrar gráfico en ventana emergente"""
-        fig = getattr(self.sismo, 'dynamic_shear_fig', None)
+        fig = getattr(self.sismo, f'{plot_type}_shear_fig', None)
         if not fig:
             fig = self._create_shear_plot(plot_type)
             
@@ -803,16 +824,17 @@ class AppBase(QMainWindow):
             if not hasattr(self.sismo,'displacement_results'):
                 self.calculate_displacements()
                 
+            u_d = self.sismo.u_d
             results = self.sismo.displacement_results
             
             max_x = results.get('max_displacement_x', 0.0)
             max_y = results.get('max_displacement_y', 0.0)
             
             # Actualizar campos
-            self.ui.le_desp_max_x.setText(f"{max_x:.3f} mm")
-            self.ui.le_desp_max_y.setText(f"{max_y:.3f} mm")
+            self.ui.le_desp_max_x.setText(f"{u.to_unit(max_x,u_d):.3f} ({u_d})")
+            self.ui.le_desp_max_y.setText(f"{u.to_unit(max_y,u_d):.3f} ({u_d})")
             
-            print(f"Debug - Desplazamientos: X={max_x:.3f} mm, Y={max_y:.3f} mm")  
+            print(f"Debug - Desplazamientos: X={u.to_unit(max_x,u_d):.3f} mm, Y={u.to_unit(max_y,u_d):.3f} mm")  
                 
         except Exception as e:
             print(f"Error actualizando resultados de desplazamientos: {e}")
@@ -978,7 +1000,7 @@ class AppBase(QMainWindow):
 
     def _show_drifts_plot(self):
         """Mostrar gráfico de desplazamientos internamente"""
-        self.calculate_displacements()
+        self.calculate_drifts()
         
         if not hasattr(self.sismo, 'fig_drifts') or self.sismo.fig_drifts is None:
             self.sismo.fig_drifts = self.sismo._create_drift_figure(
@@ -1098,7 +1120,7 @@ class AppBase(QMainWindow):
             ratio_x = torsion_data.get('ratio_x', 0.0)
             ratio_y = torsion_data.get('ratio_y', 0.0)
             
-            # Actualizar campos
+            # Actualizar camposunits_widge
             self.ui.le_delta_max_x.setText(f"{torsion_data.get('delta_max_x', 0.0):.4f}")
             self.ui.le_delta_prom_x.setText(f"{torsion_data.get('delta_prom_x', 0.0):.4f}")
             self.ui.le_relacion_x.setText(f"{ratio_x:.3f}")
@@ -1121,7 +1143,6 @@ class AppBase(QMainWindow):
         except Exception as e:
             print(f"Error actualizando resultados de derivas: {e}")
 
-    # TODO → DataFrameDialog de table_dialog
     def show_torsion_table(self):
         """Mostrar tabla detallada de irregularidad torsional"""
         if not hasattr(self.sismo, 'torsion_table_data') or self.sismo.torsion_table_data is None:
@@ -1138,27 +1159,39 @@ class AppBase(QMainWindow):
         )
         
     # Unidades
-    def _on_units_changed(self, units_dict):
-        """Manejar cambio de unidades de trabajo"""
-        # Actualizar unidades en el objeto sísmico
-        self.sismo.set_units(units_dict)
-        
-        # Actualizar tooltips y labels de la interfaz
+    def _on_units_changed(self):
+        """Manejar cambio de unidades de trabajo"""        
+        # Extraer inidades de la interfaz
+        units_dict = self.get_current_units()
+        # Actualizar labels de la interfaz
         self._update_interface_units(units_dict)
         
-        # Regenerar gráficos existentes con nuevas unidades
-        self._refresh_existing_plots()
         
     def _update_interface_units(self, units_dict):
         """Actualizar las unidades mostradas en la interfaz"""
         u_f = units_dict.get('fuerzas', 'tonf')
         u_d = units_dict.get('desplazamientos', 'mm')
+        u_h = units_dict.get('alturas','m')
         
-        # Actualizar títulos de grupos si existen
-        if hasattr(self.ui, 'group_shear'):
-            self.ui.group_shear.setTitle(f"Fuerzas Cortantes ({u_f})")
-        if hasattr(self.ui, 'group_displacement'):
-            self.ui.group_displacement.setTitle(f"Desplazamientos ({u_d}) y Derivas")
+        if self.sismo.u_f != u_f:
+            self.sismo.u_f = u_f    
+            self._update_shear_displays()
+            setattr(self.sismo, 'static_shear_fig', None)
+            setattr(self.sismo, 'dynamic_shear_fig', None)
+            
+        if self.sismo.u_d != u_d:
+            self.sismo.u_d = u_d
+            self._update_displacement_results()
+            setattr(self.sismo, 'fig_displacements', None)
+            setattr(self.sismo, 'fig_drifts', None)
+        
+        if self.sismo.u_h != u_h:
+            self.sismo.u_h = u_h
+            setattr(self.sismo, 'static_shear_fig', None)
+            setattr(self.sismo, 'dynamic_shear_fig', None)
+            setattr(self.sismo, 'fig_displacements', None)
+            setattr(self.sismo, 'fig_drifts', None)
+        
             
     def get_current_units(self):
         """Obtener unidades actuales"""
@@ -1305,41 +1338,7 @@ class AppBase(QMainWindow):
             print(f"Error en actualización automática: {e}")
         
         
-    def _refresh_existing_plots(self):
-        """Regenerar gráficos existentes con las nuevas unidades"""
-        # Regenerar gráfico de desplazamientos si existe
-        if hasattr(self.sismo, 'disp_x') and hasattr(self.sismo, 'disp_y') and hasattr(self.sismo, 'disp_h'):
-            use_combo = getattr(self.sismo, '_used_displacement_combo', False)
-            self.sismo.fig_displacements = self.sismo._create_displacement_figure(
-                self.sismo.disp_x, self.sismo.disp_y, self.sismo.disp_h, use_combo
-            )
-        
-        # Regenerar gráfico de derivas si existe  
-        if hasattr(self.sismo, 'drift_x') and hasattr(self.sismo, 'drift_y') and hasattr(self.sismo, 'drift_h'):
-            use_combo = getattr(self.sismo, '_used_drift_combo', False)
-            self.sismo.fig_drifts = self.sismo._create_drift_figure(
-                self.sismo.drift_x, self.sismo.drift_y, self.sismo.drift_h, use_combo
-            )
-        
-        # Regenerar gráficos de cortantes si existen (con casos guardados)
-        if hasattr(self.sismo, 'shear_dynamic') and not self.sismo.shear_dynamic.empty:
-            # Usar casos guardados o combinaciones actuales
-            sx = getattr(self.sismo, '_saved_sx_dynamic', [])
-            sy = getattr(self.sismo, '_saved_sy_dynamic', [])
-            if sx and sy:
-                self.sismo.dynamic_shear_fig = self.sismo._create_shear_figure(
-                    self.sismo.shear_dynamic, sx, sy, 'dynamic'
-                )
-        
-        if hasattr(self.sismo, 'shear_static') and not self.sismo.shear_static.empty:
-            # Usar casos guardados o combinaciones actuales
-            sx = getattr(self.sismo, '_saved_sx_static', [])
-            sy = getattr(self.sismo, '_saved_sy_static', [])
-            if sx and sy:
-                self.sismo.static_shear_fig = self.sismo._create_shear_figure(
-                    self.sismo.shear_static, sx, sy, 'static'
-                )
-    
+
     def _force_generate_all_plots(self):
         """Forzar generación de todos los gráficos necesarios"""
         print("🔄 Generando todos los gráficos para memoria...")

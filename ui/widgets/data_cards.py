@@ -5,7 +5,7 @@ Widget tipo card/tarjeta para datos del proyecto
 
 from PyQt5.QtWidgets import (QFrame, QVBoxLayout, QHBoxLayout, QGridLayout, 
                             QLabel, QLineEdit, QWidget, QSizePolicy, QComboBox,
-                            QDoubleSpinBox)
+                            QDoubleSpinBox,QPushButton)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont, QPixmap, QPainter, QPainterPath
 from .seismic_params_widget import SeismicParamsWidget
@@ -284,7 +284,7 @@ class ProjectDataCard(DataCard):
             self.le_fecha.setText(data['fecha'])
             
 class SeismicParamsCard(DataCard):
-    """Card que envuelve el SeismicParamsWidget existente"""
+    """Card que envuelve de parámetros sísmicos"""
     
     def __init__(self, parent=None):
         # Inicializar card con título - SIN config inicialmente
@@ -343,3 +343,334 @@ class SeismicParamsCard(DataCard):
         """Conectar señales de cambio (si existen en el widget)"""
         if self.seismic_widget and hasattr(self.seismic_widget, 'connect_param_changed'):
             self.seismic_widget.connect_param_changed(callback)
+            
+            
+class UnitsParamsCard(DataCard):
+    """Card de unidades"""
+    units_changed = pyqtSignal(dict) # Señal cuando cambian las unidades
+    
+    def __init__(self, parent=None):
+        super().__init__("UNIDADES DE TRABAJO", "🏗️", parent)
+        self._create_fields()
+        self.connect_signals()
+        
+    def _create_fields(self):
+        from core.config.units_config import get_unit_options, get_default_unit
+        """Crear campos específicos de unidades"""
+        # Configurar expansión de columnas
+        self.content_layout.setColumnStretch(1, 1)
+        self.content_layout.setColumnStretch(3, 1)
+        self.content_layout.setColumnStretch(5, 1)
+        
+        # Crear combo boxes para cada categoría
+        self.combos = {}
+        # Alturas
+        #group_layout.addWidget(QLabel("Alturas:"), 0, 0)
+        self.combos['alturas'] = QComboBox()
+        self.combos['alturas'].addItems(get_unit_options('alturas'))
+        self.combos['alturas'].setCurrentText(get_default_unit('alturas'))
+        self.add_field(0, 0, "Alturas:", self.combos['alturas'], "alturas", "Unidad de alturas")
+        
+        # Desplazamientos
+        # group_layout.addWidget(QLabel("Desplazamientos:"), 0, 2)
+        self.combos['desplazamientos'] = QComboBox()
+        self.combos['desplazamientos'].addItems(get_unit_options('desplazamientos'))
+        self.combos['desplazamientos'].setCurrentText(get_default_unit('desplazamientos'))
+        self.add_field(0, 2, "Desplazamientos:", self.combos['desplazamientos'], "desplazamientos", "Unidad de desplazamientos")
+        
+        # Fuerzas
+        # group_layout.addWidget(QLabel("Fuerzas:"), 0, 4)
+        self.combos['fuerzas'] = QComboBox()
+        self.combos['fuerzas'].addItems(get_unit_options('fuerzas'))
+        self.combos['fuerzas'].setCurrentText(get_default_unit('fuerzas'))
+        self.add_field(0, 4, "fuerzas:", self.combos['fuerzas'], "fuerzas", "Unidad de fuerzas")
+        
+    def connect_signals(self):
+        """Conectar señales"""
+        for categoria, combo in self.combos.items():
+            combo.currentTextChanged.connect(self._on_unit_changed)
+            
+    def _on_unit_changed(self):
+        """Cuando cambia una unidad"""
+        units = self.get_current_units()
+        self.units_changed.emit(units)
+        
+    def get_current_units(self):
+        """Obtener unidades actuales seleccionadas"""
+        return {categoria: combo.currentText() 
+                for categoria, combo in self.combos.items()}
+        
+    def set_units(self, units_dict):
+        """Establecer unidades específicas"""
+        for categoria, unidad in units_dict.items():
+            if categoria in self.combos:
+                combo = self.combos[categoria]
+                if unidad in [combo.itemText(i) for i in range(combo.count())]:
+                    combo.setCurrentText(unidad)
+                    
+                    
+class ModalCard(DataCard):
+    """Card de análisis modal"""
+    #units_changed = pyqtSignal(dict) # Señal cuando cambian las unidades
+    
+    def __init__(self, parent=None):
+        super().__init__("ANÁLISIS MODAL", "🏗️", parent)
+        self._create_fields()
+        #self.connect_signals()
+        
+    def _create_fields(self):
+        from core.config.units_config import get_unit_options, get_default_unit
+        """Crear campos específicos de unidades"""
+        # Configurar expansión de columnas
+        self.content_layout.setColumnStretch(1, 1)
+        self.content_layout.setColumnStretch(3, 1)
+        
+        # % Mínimo de Masa Participativa
+        self.le_modal = QLineEdit("90")
+        self.add_field(0, 2, "Masa Mínima (%):", self.le_modal, "le_modal", "% Mínimo de Masa Participativa")
+        
+        # Resultados Modales
+        self.le_tx = QLineEdit()
+        self.le_tx.setReadOnly(True)
+        self.le_ty = QLineEdit()
+        self.le_ty.setReadOnly(True)
+        self.add_field(1, 0, "Periodo Tx:", self.le_tx, "le_tx", "Periodo Tx")
+        self.add_field(1, 2, "Periodo Ty:", self.le_ty, "le_ty", "Periodo Ty")
+        
+        # Masa participativa acumulada
+        self.le_participacion_x = QLineEdit()
+        self.le_participacion_x.setReadOnly(True)
+        self.le_participacion_y = QLineEdit()
+        self.le_participacion_y.setReadOnly(True)
+        self.add_field(2, 0, "Masa X (%):", self.le_participacion_x, "le_participacion_x", "Masa X (%)")
+        self.add_field(2, 2, "Masa Y (%):", self.le_participacion_y, "le_participacion_y", "Masa Y (%)")
+        
+        # Botón para ver tabla
+        self.b_modal = QPushButton("Ver Data")
+        self.add_field(3, 2, "", self.b_modal, "b_modal", "Botón de ver data")
+        
+    # def connect_signals(self):
+    #     """Conectar señales"""
+    #     for categoria, combo in self.combos.items():
+    #         combo.currentTextChanged.connect(self._on_unit_changed)
+            
+class CombinationsCard(DataCard):
+    """Card de combinaciones de Carga"""
+    #units_changed = pyqtSignal(dict) # Señal cuando cambian las unidades
+    
+    def __init__(self, parent=None):
+        super().__init__("SELECCIÓN DE COMBINACIONES DE CARGA", "🏗️", parent)
+        self._create_fields()
+        #self.connect_signals()
+        
+    def _create_fields(self):
+        """Crear campos específicos"""
+        # Configurar expansión de columnas
+        self.content_layout.setColumnStretch(1, 1)
+        self.content_layout.setColumnStretch(3, 1)
+        
+        # Combinaciones Estáticas
+        self.cb_comb_static_x = QComboBox()
+        self.cb_comb_static_y = QComboBox()
+        self.add_field(0, 0, "Estáticas X:", self.cb_comb_static_x, "cb_comb_static_x", "Combinaciones estáticas en X")
+        self.add_field(0, 2, "Estáticas Y:", self.cb_comb_static_y, "cb_comb_static_y", "Combinaciones estáticas en Y")
+        
+        # Combinaciones Dinámicas
+        self.cb_comb_dynamic_x = QComboBox()
+        self.cb_comb_dynamic_y = QComboBox()
+        self.add_field(1, 0, "Dinámicas X:", self.cb_comb_dynamic_x, "cb_comb_dynamic_x", "Combinaciones dinámicas en X")
+        self.add_field(1, 2, "Dinámicas Y:", self.cb_comb_dynamic_y, "cb_comb_dynamic_y", "Combinaciones dinámicas en Y")
+        
+        # Combinaciones de Desplazamientos
+        self.cb_comb_displacement_x = QComboBox()
+        self.cb_comb_displacement_y = QComboBox()
+        self.add_field(2, 0, "Desplaz. X:", self.cb_comb_displacement_x, "cb_comb_displacement_x", "Combinaciones de desplazamiento en X")
+        self.add_field(2, 2, "Desplaz. Y:", self.cb_comb_displacement_y, "cb_comb_displacement_y", "Combinaciones de desplazamiento en Y")
+        
+        
+    
+    # def connect_signals(self):
+    #     """Conectar señales"""
+    #     for categoria, combo in self.combos.items():
+    #         combo.currentTextChanged.connect(self._on_unit_changed)
+   
+   
+class ShearCard(DataCard):
+    """Card de Fuerzas Cortantes"""
+    #units_changed = pyqtSignal(dict) # Señal cuando cambian las unidades
+    
+    def __init__(self, parent=None):
+        super().__init__("FUERZAS CORTANTES", "🏗️", parent)
+        self._create_fields()
+        #self.connect_signals()
+        
+    def _create_fields(self):
+        """Crear campos específicos"""
+        # Configurar expansión de columnas
+        self.content_layout.setColumnStretch(1, 1)
+        self.content_layout.setColumnStretch(3, 1)
+        
+        # % min
+        self.le_scale_factor = QLineEdit("80.0")
+        self.add_field(0, 2, "% Mín. Fuerzas Dinámicas:", self.le_scale_factor, "le_scale_factor", "% Mín. Fuerzas Dinámicas")
+        
+        # V dinámico
+        self.le_vdx = QLineEdit()
+        self.le_vdx.setReadOnly(True)
+        self.le_vdy = QLineEdit()
+        self.le_vdy.setReadOnly(True)
+        self.add_field(1, 0, "V dinámico X:", self.le_vdx, "le_vdx", "Cortante dinámica en X")
+        self.add_field(1, 2, "V dinámico Y:", self.le_vdy, "le_vdy", "Cortante dinámica en Y")
+        
+        # V Estático
+        self.le_vsx = QLineEdit()
+        self.le_vsx.setReadOnly(True)
+        self.le_vsy = QLineEdit()
+        self.le_vsy.setReadOnly(True)
+        self.add_field(2, 0, "V estático X:", self.le_vsx, "le_vsx", "Cortante estático en X")
+        self.add_field(2, 2, "V estático Y:", self.le_vsy, "le_vsy", "Cortante estático en Y")
+        
+        # Factores de Escala
+        self.le_fx = QLineEdit()
+        self.le_fx.setReadOnly(True)
+        self.le_fy = QLineEdit()
+        self.le_fy.setReadOnly(True)
+        self.add_field(3, 0, "F.E. X:", self.le_fx, "le_fx", "Factor de escala en X")
+        self.add_field(3, 2, "F.E. Y:", self.le_fy, "le_fy", "Factor de escala en Y")
+        
+        # Botones
+        self.b_view_dynamic = QPushButton("Ver Gráfico Dinámico")
+        self.b_view_static = QPushButton("Ver Gráfico Estático")
+        self.add_field(4, 0, "", self.b_view_static, "b_view_static", "Ver Gráfico Estático")
+        self.add_field(4, 2, "", self.b_view_dynamic, "b_view_dynamic", "Ver Gráfico Dinámico")
+   
+    # def connect_signals(self):
+    #     """Conectar señales"""
+    #     for categoria, combo in self.combos.items():
+    #         combo.currentTextChanged.connect(self._on_unit_changed)
+    
+class DisplacementCard(DataCard):
+    """Card de Desplazamientos"""
+    #units_changed = pyqtSignal(dict) # Señal cuando cambian las unidades
+    
+    def __init__(self, parent=None):
+        super().__init__("Desplazamientos", "🏗️", parent)
+        self._create_fields()
+        #self.connect_signals()
+        
+    def _create_fields(self):
+        """Crear campos específicos"""
+        # Configurar expansión de columnas
+        self.content_layout.setColumnStretch(1, 1)
+        self.content_layout.setColumnStretch(3, 1)
+        
+        # Desplazamientos
+        self.le_desp_max_x = QLineEdit()
+        self.le_desp_max_x.setReadOnly(True)
+        self.le_desp_max_y = QLineEdit()
+        self.le_desp_max_y.setReadOnly(True)
+        self.add_field(0, 0, "Desp. máx X:", self.le_desp_max_x, "le_desp_max_x", "Desplazamiento máx X")
+        self.add_field(0, 2, "Desp. máx Y:", self.le_desp_max_y, "le_desp_max_y", "Desplazamiento máx Y")
+        
+      
+        # Boton
+        self.b_desplazamiento = QPushButton("Calcular Desplazamientos")
+        self.add_field(1, 0, "", self.b_desplazamiento, "b_desplazamiento", "")
+   
+    # def connect_signals(self):
+    #     """Conectar señales"""
+    #     for categoria, combo in self.combos.items():
+    #         combo.currentTextChanged.connect(self._on_unit_changed)
+    
+class DriftCard(DataCard):
+    """Card de Derivas"""
+    #units_changed = pyqtSignal(dict) # Señal cuando cambian las unidades
+    
+    def __init__(self, parent=None):
+        super().__init__("Derivas", "🏗️", parent)
+        self._create_fields()
+        #self.connect_signals()
+        
+    def _create_fields(self):
+        """Crear campos específicos"""
+        # Configurar expansión de columnas
+        self.content_layout.setColumnStretch(1, 1)
+        self.content_layout.setColumnStretch(3, 1)
+        
+        # Deriva Máxima
+        self.le_max_drift = QLineEdit("0.007")
+        self.add_field(0, 2, "Deriva Máxima:", self.le_max_drift, "le_max_drift", "Deriva Máxima")
+        
+        # Derivas
+        self.le_deriva_max_x = QLineEdit()
+        self.le_deriva_max_x.setReadOnly(True)
+        self.le_deriva_max_y = QLineEdit()
+        self.le_deriva_max_y.setReadOnly(True)
+        self.add_field(1, 0, "Deriva máx X:", self.le_deriva_max_x, "le_deriva_max_x", "Deriva máx X")
+        self.add_field(1, 2, "Deriva máx Y:", self.le_deriva_max_y, "le_deriva_max_y", "Deriva máx Y")
+        
+        # Pisos de deriva máxima
+        self.le_piso_deriva_x = QLineEdit()
+        self.le_piso_deriva_x.setReadOnly(True)
+        self.le_piso_deriva_y = QLineEdit()
+        self.le_piso_deriva_y.setReadOnly(True)
+        self.add_field(1, 0, "Piso X:", self.le_piso_deriva_x, "le_piso_deriva_x", "Piso de la deriva máx X")
+        self.add_field(1, 2, "Piso Y:", self.le_piso_deriva_y, "le_piso_deriva_y", "Piso de la deriva máx Y")
+        
+        # Boton
+        self.b_derivas = QPushButton("Calcular Derivas")
+        self.add_field(3, 0, "", self.b_derivas, "b_derivas", "")
+   
+    # def connect_signals(self):
+    #     """Conectar señales"""
+    #     for categoria, combo in self.combos.items():
+    #         combo.currentTextChanged.connect(self._on_unit_changed)
+    
+    
+class TorsionCard(DataCard):
+    """Card de Irregularidad por Torsión"""
+    #units_changed = pyqtSignal(dict) # Señal cuando cambian las unidades
+    
+    def __init__(self, parent=None):
+        super().__init__("Irregularidad Torsional", "🏗️", parent)
+        self._create_fields()
+        #self.connect_signals()
+        
+    def _create_fields(self):
+        """Crear campos específicos"""
+        # Configurar expansión de columnas
+        self.content_layout.setColumnStretch(1, 1)
+        self.content_layout.setColumnStretch(3, 1)
+        
+        # Combinación para torsión
+        self.cb_torsion_combo = QComboBox()
+        self.cb_torsion_combo.addItems(["Dinámicas", "Estáticas", "Desplazamientos"])
+        self.add_field(0, 2, "Combinación:", self.cb_torsion_combo, "cb_torsion_combo", "Combinación para el cálculo")
+        
+        self.le_torsion_limit = QLineEdit("1.30")
+        self.add_field(1, 2, "Ratio límite:", self.le_torsion_limit, "le_torsion_limit", "Ratio límite")
+        
+        # Ratios
+        self.le_relacion_x = QLineEdit()
+        self.le_relacion_x.setReadOnly(True)
+        self.le_relacion_y = QLineEdit()
+        self.le_relacion_x.setReadOnly(True)
+        self.add_field(2, 0, "Ratio en X:", self.le_relacion_x, "le_relacion_x", "Ration en X")
+        self.add_field(2, 2, "Ratio en Y:", self.le_relacion_y, "le_relacion_y", "Ration en Y")
+        
+        # Irregularidad
+        self.le_irregularidad_x = QLineEdit()
+        self.le_irregularidad_x.setReadOnly(True)
+        self.le_irregularidad_y = QLineEdit()
+        self.le_irregularidad_y.setReadOnly(True)
+        self.add_field(3, 0, "", self.le_irregularidad_x, "le_irregularidad_x", "")
+        self.add_field(3, 2, "", self.le_irregularidad_y, "le_irregularidad_y", "")
+        
+        # Boton
+        self.b_torsion_table = QPushButton("Ver Tabla")
+        self.add_field(4, 0, "", self.b_torsion_table, "b_torsion_table", "")
+   
+    # def connect_signals(self):
+    #     """Conectar señales"""
+    #     for categoria, combo in self.combos.items():
+    #         combo.currentTextChanged.connect(self._on_unit_changed)

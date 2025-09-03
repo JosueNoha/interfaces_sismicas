@@ -72,7 +72,6 @@ class AppBase(QMainWindow):
         self.ui.le_max_drift.textChanged.connect(self._validate_max_drift)
 
         # Botón irregularidad torsional
-        self.ui.b_torsion.clicked.connect(self.calculate_torsion)
         self.ui.b_torsion_table.clicked.connect(self.show_torsion_table)
         self.ui.le_torsion_limit.textChanged.connect(self._update_torsion_results)
         

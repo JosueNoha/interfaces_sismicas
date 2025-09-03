@@ -3,8 +3,8 @@ Interfaz principal unificada con ComboBoxes de combinaciones
 """
 
 from PyQt5 import QtCore, QtGui, QtWidgets
-from ui.widgets.units_widget import UnitsWidget
-from ui.widgets.data_cards import ProjectDataCard,SeismicParamsCard
+from ui.widgets.data_cards import (ProjectDataCard, SeismicParamsCard, UnitsParamsCard, ModalCard, CombinationsCard, ShearCard, DisplacementCard, 
+DriftCard, TorsionCard)
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -115,30 +115,6 @@ class Ui_MainWindow(object):
         scroll_widget = QtWidgets.QWidget()
         scroll_layout = QtWidgets.QVBoxLayout(scroll_widget)
         
-        # # Grupo de información del proyecto
-        # self.group_project = QtWidgets.QGroupBox("Información del Proyecto")
-        # project_layout = QtWidgets.QGridLayout(self.group_project)
-        
-        # # Campos del proyecto
-        # self.label_proyecto = QtWidgets.QLabel("Proyecto:")
-        # self.le_proyecto = QtWidgets.QLineEdit()
-        # self.label_ubicacion = QtWidgets.QLabel("Ubicación:")
-        # self.le_ubicacion = QtWidgets.QLineEdit()
-        # self.label_autor = QtWidgets.QLabel("Autor:")
-        # self.le_autor = QtWidgets.QLineEdit()
-        # self.label_fecha = QtWidgets.QLabel("Fecha:")
-        # self.le_fecha = QtWidgets.QLineEdit()
-        
-        # project_layout.addWidget(self.label_proyecto, 0, 0)
-        # project_layout.addWidget(self.le_proyecto, 0, 1)
-        # project_layout.addWidget(self.label_ubicacion, 0, 2)
-        # project_layout.addWidget(self.le_ubicacion, 0, 3)
-        # project_layout.addWidget(self.label_autor, 1, 0)
-        # project_layout.addWidget(self.le_autor, 1, 1)
-        # project_layout.addWidget(self.label_fecha, 1, 2)
-        # project_layout.addWidget(self.le_fecha, 1, 3)
-        
-        # layout.addWidget(self.group_project)
         
         # Card de datos del proyecto  
         self.project_data_card = ProjectDataCard()
@@ -151,19 +127,12 @@ class Ui_MainWindow(object):
         self.le_fecha = self.project_data_card.le_fecha
         
         # # Grupo de parámetros sísmicos (contenedor dinámico)
-        # self.group_seismic_params = QtWidgets.QGroupBox("Parámetros Sísmicos")
-        # self.seismic_params_layout = QtWidgets.QGridLayout(self.group_seismic_params)
-        # layout.addWidget(self.group_seismic_params)
-        
         self.seismic_params_card = SeismicParamsCard()
         scroll_layout.addWidget(self.seismic_params_card)
         
-        # Widget de unidades de trabajo
-        self.units_widget = UnitsWidget()
-        scroll_layout.addWidget(self.units_widget)
-        
         
         # Configurar scroll
+        scroll_layout.addStretch()
         scroll.setWidget(scroll_widget)
         scroll.setWidgetResizable(True)
         layout.addWidget(scroll)
@@ -176,25 +145,82 @@ class Ui_MainWindow(object):
         self.tab_seismic = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(self.tab_seismic)
         
+        
         # Scroll area
         scroll = QtWidgets.QScrollArea()
         scroll_widget = QtWidgets.QWidget()
         scroll_layout = QtWidgets.QVBoxLayout(scroll_widget)
         
+        # Widget de unidades de trabajo
+        self.units_widget = UnitsParamsCard()
+        scroll_layout.addWidget(self.units_widget)
+        
         # Análisis Modal
-        self._setup_modal_section(scroll_layout)
+        card = ModalCard()
+        scroll_layout.addWidget(card)
+        
+        self.le_modal = card.le_modal
+        self.le_tx = card.le_tx
+        self.le_ty = card.le_ty
+        self.le_participacion_x = card.le_participacion_x
+        self.le_participacion_y = card.le_participacion_y
+        self.b_modal = card.b_modal
         
         # Selección de Combinaciones
-        self._setup_combinations_section(scroll_layout)
+        card = CombinationsCard()
+        scroll_layout.addWidget(card)
+        
+        self.cb_comb_static_x = card.cb_comb_static_x
+        self.cb_comb_static_y = card.cb_comb_static_y
+        self.cb_comb_dynamic_x = card.cb_comb_dynamic_x
+        self.cb_comb_dynamic_y = card.cb_comb_dynamic_y
+        self.cb_comb_displacement_x = card.cb_comb_displacement_x
+        self.cb_comb_displacement_y = card.cb_comb_displacement_y
         
         # Fuerzas cortantes
-        self._setup_shear_section(scroll_layout)
+        card = ShearCard()
+        scroll_layout.addWidget(card)
         
+        self.le_scale_factor = card.le_scale_factor
+        self.le_vdx = card.le_vdx
+        self.le_vdy = card.le_vdy
+        self.le_vsx = card.le_vsx
+        self.le_vsy = card.le_vsy
+        self.le_fx = card.le_fx
+        self.le_fy = card.le_fy
+        self.b_view_dynamic = card.b_view_dynamic
+        self.b_view_static = card.b_view_static
+      
         # Desplazamientos y derivas
-        self._setup_displacement_section(scroll_layout)
+        card = DisplacementCard()
+        scroll_layout.addWidget(card)
+        
+        self.le_desp_max_x = card.le_desp_max_x
+        self.le_desp_max_y = card.le_desp_max_y
+        self.b_desplazamiento = card.b_desplazamiento
+
+        card = DriftCard()
+        scroll_layout.addWidget(card)
+        
+        self.le_max_drift = card.le_max_drift
+        self.le_deriva_max_x = card.le_deriva_max_x
+        self.le_deriva_max_y = card.le_deriva_max_y
+        self.le_piso_deriva_x = card.le_piso_deriva_x
+        self.le_piso_deriva_y = card.le_piso_deriva_y
+        self.b_derivas = card.b_derivas
 
         # Irregularidad torsional
-        self._setup_torsion_section(scroll_layout)
+        card = TorsionCard()
+        scroll_layout.addWidget(card)
+        
+        self.cb_torsion_combo = card.cb_torsion_combo
+        self.le_torsion_limit = card.le_torsion_limit
+        self.le_relacion_x = card.le_relacion_x
+        self.le_relacion_y = card.le_relacion_y
+        self.le_irregularidad_x = card.le_irregularidad_x
+        self.le_irregularidad_y = card.le_irregularidad_y
+        self.b_torsion_table = card.b_torsion_table
+
 
         # Configurar scroll
         scroll.setWidget(scroll_widget)
@@ -202,315 +228,6 @@ class Ui_MainWindow(object):
         layout.addWidget(scroll)
         
         self.tabWidget.addTab(self.tab_seismic, "Análisis Sísmico")
-        
-        
-    def _setup_modal_section(self, parent_layout):
-        """Configurar sección de análisis modal"""
-        self.group_modal = QtWidgets.QGroupBox("Análisis Modal")
-        modal_layout = QtWidgets.QGridLayout(self.group_modal)
-        
-        self.label_modal_min = QtWidgets.QLabel("% Mínimo Masa Participativa:")
-        self.le_modal = QtWidgets.QLineEdit("90")
-        self.b_modal = QtWidgets.QPushButton("Ver Data")
-        
-        modal_layout.addWidget(self.label_modal_min, 0, 0)
-        modal_layout.addWidget(self.le_modal, 0, 1)
-        modal_layout.addWidget(self.b_modal, 0, 2)
-        
-        # Resultados modales
-        self.label_tx = QtWidgets.QLabel("Periodo Tx:")
-        self.le_tx = QtWidgets.QLineEdit()
-        self.le_tx.setReadOnly(True)
-        self.label_ty = QtWidgets.QLabel("Periodo Ty:")
-        self.le_ty = QtWidgets.QLineEdit()
-        self.le_ty.setReadOnly(True)
-        
-        modal_layout.addWidget(self.label_tx, 1, 0)
-        modal_layout.addWidget(self.le_tx, 1, 1)
-        modal_layout.addWidget(self.label_ty, 1, 2)
-        modal_layout.addWidget(self.le_ty, 1, 3)
-        
-
-        # Etiquetas para masa participativa acumulada
-        self.label_participacion_x = QtWidgets.QLabel("Masa X (%):")
-        self.le_participacion_x = QtWidgets.QLineEdit()
-        self.le_participacion_x.setReadOnly(True)
-
-        self.label_participacion_y = QtWidgets.QLabel("Masa Y (%):")
-        self.le_participacion_y = QtWidgets.QLineEdit()
-        self.le_participacion_y.setReadOnly(True)
-
-        modal_layout.addWidget(self.label_participacion_x, 2, 0)
-        modal_layout.addWidget(self.le_participacion_x, 2, 1)
-        modal_layout.addWidget(self.label_participacion_y, 2, 2)
-        modal_layout.addWidget(self.le_participacion_y, 2, 3)
-                
-        parent_layout.addWidget(self.group_modal)
-
-    def _setup_combinations_section(self, parent_layout):
-        """Configurar sección de selección de combinaciones por dirección"""
-        self.group_combinations = QtWidgets.QGroupBox("Selección de Combinaciones de Carga")
-        comb_layout = QtWidgets.QGridLayout(self.group_combinations)
-        
-        # Combinaciones Dinámicas X
-        self.label_comb_dynamic_x = QtWidgets.QLabel("Dinámicas X:")
-        self.cb_comb_dynamic_x = QtWidgets.QComboBox()
-        self.cb_comb_dynamic_x.setEditable(True)
-        
-        # Combinaciones Dinámicas Y  
-        self.label_comb_dynamic_y = QtWidgets.QLabel("Dinámicas Y:")
-        self.cb_comb_dynamic_y = QtWidgets.QComboBox()
-        self.cb_comb_dynamic_y.setEditable(True)
-        
-        comb_layout.addWidget(self.label_comb_dynamic_x, 0, 0)
-        comb_layout.addWidget(self.cb_comb_dynamic_x, 0, 1)
-        comb_layout.addWidget(self.label_comb_dynamic_y, 0, 2)
-        comb_layout.addWidget(self.cb_comb_dynamic_y, 0, 3)
-        
-        # Combinaciones Estáticas X
-        self.label_comb_static_x = QtWidgets.QLabel("Estáticas X:")
-        self.cb_comb_static_x = QtWidgets.QComboBox()
-        self.cb_comb_static_x.setEditable(True)
-        
-        # Combinaciones Estáticas Y
-        self.label_comb_static_y = QtWidgets.QLabel("Estáticas Y:")
-        self.cb_comb_static_y = QtWidgets.QComboBox()
-        self.cb_comb_static_y.setEditable(True)
-
-        comb_layout.addWidget(self.label_comb_static_x, 1, 0)
-        comb_layout.addWidget(self.cb_comb_static_x, 1, 1)
-        comb_layout.addWidget(self.label_comb_static_y, 1, 2)
-        comb_layout.addWidget(self.cb_comb_static_y, 1, 3)
-        
-        # Combinaciones de Desplazamientos X
-        self.label_comb_displacement_x = QtWidgets.QLabel("Desplaz. X:")
-        self.cb_comb_displacement_x = QtWidgets.QComboBox()
-        self.cb_comb_displacement_x.setEditable(True)
-
-        # Combinaciones de Desplazamientos Y
-        self.label_comb_displacement_y = QtWidgets.QLabel("Desplaz. Y:")
-        self.cb_comb_displacement_y = QtWidgets.QComboBox()
-        self.cb_comb_displacement_y.setEditable(True)
-        
-        comb_layout.addWidget(self.label_comb_displacement_x, 2, 0)
-        comb_layout.addWidget(self.cb_comb_displacement_x, 2, 1)
-        comb_layout.addWidget(self.label_comb_displacement_y, 2, 2)
-        comb_layout.addWidget(self.cb_comb_displacement_y, 2, 3) 
-        
-        # Botón refresh
-        self.b_refresh_combinations = QtWidgets.QPushButton("🔄 Actualizar Combinaciones")
-        self.b_refresh_combinations.setToolTip("Obtener combinaciones sísmicas desde ETABS")
-        comb_layout.addWidget(self.b_refresh_combinations, 3, 0, 1, 4)
-        
-        parent_layout.addWidget(self.group_combinations)
-
-    def _setup_shear_section(self, parent_layout):
-        """Configurar sección de fuerzas cortantes organizadas por dirección"""
-        self.group_shear = QtWidgets.QGroupBox("Fuerzas Cortantes")
-        shear_layout = QtWidgets.QGridLayout(self.group_shear)
-        
-        # Factor de escala - fila independiente
-        self.label_scale_factor = QtWidgets.QLabel("Factor Escala Mín (%):")
-        self.le_scale_factor = QtWidgets.QLineEdit("80.0")
-        shear_layout.addWidget(self.label_scale_factor, 1, 1)
-        shear_layout.addWidget(self.le_scale_factor, 1, 2)
-        
-        # Headers por dirección
-        label_x = QtWidgets.QLabel("Dirección X")
-        label_x.setAlignment(QtCore.Qt.AlignCenter)
-        label_x.setStyleSheet("font-weight: bold;")
-        label_y = QtWidgets.QLabel("Dirección Y")
-        label_y.setAlignment(QtCore.Qt.AlignCenter) 
-        label_y.setStyleSheet("font-weight: bold;")
-        
-        shear_layout.addWidget(label_x, 2, 1)
-        shear_layout.addWidget(label_y, 2, 2)
-        
-        # Columna X - Dinámico, Estático, Factor
-        self.label_vdx = QtWidgets.QLabel("V din:")
-        self.le_vdx = QtWidgets.QLineEdit()
-        self.le_vdx.setReadOnly(True)
-        shear_layout.addWidget(self.label_vdx, 3, 0)
-        shear_layout.addWidget(self.le_vdx, 3, 1)
-        
-        self.label_vsx = QtWidgets.QLabel("V est:")
-        self.le_vsx = QtWidgets.QLineEdit()
-        self.le_vsx.setReadOnly(True)
-        shear_layout.addWidget(self.label_vsx, 4, 0)
-        shear_layout.addWidget(self.le_vsx, 4, 1)
-        
-        self.label_fx = QtWidgets.QLabel("F.E.:")
-        self.le_fx = QtWidgets.QLineEdit()
-        self.le_fx.setReadOnly(True)
-        shear_layout.addWidget(self.label_fx, 5, 0)
-        shear_layout.addWidget(self.le_fx, 5, 1)
-        
-        # Columna Y - Dinámico, Estático, Factor  
-        self.label_vdy = QtWidgets.QLabel("V din:")
-        self.le_vdy = QtWidgets.QLineEdit()
-        self.le_vdy.setReadOnly(True)
-        shear_layout.addWidget(self.label_vdy, 3, 2)
-        shear_layout.addWidget(self.le_vdy, 3, 3)
-        
-        self.label_vsy = QtWidgets.QLabel("V est:")
-        self.le_vsy = QtWidgets.QLineEdit()
-        self.le_vsy.setReadOnly(True)
-        shear_layout.addWidget(self.label_vsy, 4, 2)
-        shear_layout.addWidget(self.le_vsy, 4, 3)
-        
-        self.label_fy = QtWidgets.QLabel("F.E.:")
-        self.le_fy = QtWidgets.QLineEdit()
-        self.le_fy.setReadOnly(True)
-        shear_layout.addWidget(self.label_fy, 5, 2)
-        shear_layout.addWidget(self.le_fy, 5, 3)
-        
-        self.b_view_dynamic = QtWidgets.QPushButton("Ver Gráfico Dinámico")
-        self.b_view_static = QtWidgets.QPushButton("Ver Gráfico Estático")
-
-        shear_layout.addWidget(self.b_view_dynamic, 6, 1)
-        shear_layout.addWidget(self.b_view_static, 6, 2)
-        
-        parent_layout.addWidget(self.group_shear)
-
-    def _setup_displacement_section(self, parent_layout):
-        """Configurar sección de desplazamientos y derivas"""
-        self.group_displacements = QtWidgets.QGroupBox("Desplazamientos y Derivas")
-        displ_layout = QtWidgets.QGridLayout(self.group_displacements)
-        
-        self.b_desplazamiento = QtWidgets.QPushButton("Calcular Desplazamientos")
-        self.b_derivas = QtWidgets.QPushButton("Calcular Derivas")
-        
-        displ_layout.addWidget(self.b_desplazamiento, 0, 0)
-        displ_layout.addWidget(self.b_derivas, 0, 1)
-        
-        # Agregar campo para límite de deriva máxima
-        self.label_max_drift = QtWidgets.QLabel("Deriva Máxima:")
-        self.le_max_drift = QtWidgets.QLineEdit("0.007")
-        self.le_max_drift.setToolTip("Límite máximo de deriva (0.007 para concreto armado)")
-        
-        displ_layout.addWidget(self.label_max_drift, 1, 0)
-        displ_layout.addWidget(self.le_max_drift, 1, 1)
-        
-        # AGREGAR: Campos de resultados de desplazamientos
-        self.label_desp_max_x = QtWidgets.QLabel("Desp. máx X:")
-        self.le_desp_max_x = QtWidgets.QLineEdit()
-        self.le_desp_max_x.setReadOnly(True)
-        self.le_desp_max_x.setStyleSheet("QLineEdit { background-color: #f0f0f0; }")
-
-        self.label_desp_max_y = QtWidgets.QLabel("Desp. máx Y:")
-        self.le_desp_max_y = QtWidgets.QLineEdit()
-        self.le_desp_max_y.setReadOnly(True)
-        self.le_desp_max_y.setStyleSheet("QLineEdit { background-color: #f0f0f0; }")
-
-        displ_layout.addWidget(self.label_desp_max_x, 2, 0)
-        displ_layout.addWidget(self.le_desp_max_x, 2, 1)
-        displ_layout.addWidget(self.label_desp_max_y, 2, 2)
-        displ_layout.addWidget(self.le_desp_max_y, 2, 3)
-        
-        # AGREGAR: Campos de resultados de derivas
-        self.label_deriva_max_x = QtWidgets.QLabel("Deriva máx X:")
-        self.le_deriva_max_x = QtWidgets.QLineEdit()
-        self.le_deriva_max_x.setReadOnly(True)
-        self.le_deriva_max_x.setStyleSheet("QLineEdit { background-color: #f0f0f0; }")
-
-        self.label_deriva_max_y = QtWidgets.QLabel("Deriva máx Y:")
-        self.le_deriva_max_y = QtWidgets.QLineEdit()
-        self.le_deriva_max_y.setReadOnly(True)
-        self.le_deriva_max_y.setStyleSheet("QLineEdit { background-color: #f0f0f0; }")
-
-        displ_layout.addWidget(self.label_deriva_max_x, 3, 0)
-        displ_layout.addWidget(self.le_deriva_max_x, 3, 1)
-        displ_layout.addWidget(self.label_deriva_max_y, 3, 2)
-        displ_layout.addWidget(self.le_deriva_max_y, 3, 3)
-
-        # AGREGAR: Campos para pisos donde ocurren las derivas máximas
-        self.label_piso_deriva_x = QtWidgets.QLabel("Piso X:")
-        self.le_piso_deriva_x = QtWidgets.QLineEdit()
-        self.le_piso_deriva_x.setReadOnly(True)
-        self.le_piso_deriva_x.setStyleSheet("QLineEdit { background-color: #f0f0f0; }")
-        self.le_piso_deriva_x.setMaximumWidth(80)
-
-        self.label_piso_deriva_y = QtWidgets.QLabel("Piso Y:")
-        self.le_piso_deriva_y = QtWidgets.QLineEdit()
-        self.le_piso_deriva_y.setReadOnly(True)
-        self.le_piso_deriva_y.setStyleSheet("QLineEdit { background-color: #f0f0f0; }")
-        self.le_piso_deriva_y.setMaximumWidth(80)
-
-        displ_layout.addWidget(self.label_piso_deriva_x, 4, 0)
-        displ_layout.addWidget(self.le_piso_deriva_x, 4, 1)
-        displ_layout.addWidget(self.label_piso_deriva_y, 4, 2)
-        displ_layout.addWidget(self.le_piso_deriva_y, 4, 3)
-        
-        parent_layout.addWidget(self.group_displacements)
-
-    def _setup_torsion_section(self, parent_layout):
-        """Configurar sección de irregularidad torsional"""
-        self.group_torsion = QtWidgets.QGroupBox("Irregularidad Torsional")
-        torsion_layout = QtWidgets.QGridLayout(self.group_torsion)
-        
-        # Selector de combinación para torsión
-        self.label_torsion_combo = QtWidgets.QLabel("Combinación:")
-        self.cb_torsion_combo = QtWidgets.QComboBox()
-        self.cb_torsion_combo.addItems(["Dinámicas", "Estáticas", "Desplazamientos"])
-        self.cb_torsion_combo.setCurrentText("Dinámicas")
-        
-        torsion_layout.addWidget(self.label_torsion_combo, 0, 0)
-        torsion_layout.addWidget(self.cb_torsion_combo, 0, 1)
-        
-        # Botón calcular torsión
-        self.b_torsion = QtWidgets.QPushButton("Calcular Irregularidad Torsional")
-        torsion_layout.addWidget(self.b_torsion, 0, 2)
-        
-        # Resultados torsión por dirección
-        label_tor_x = QtWidgets.QLabel("Torsión X")
-        label_tor_x.setAlignment(QtCore.Qt.AlignCenter)
-        label_tor_x.setStyleSheet("font-weight: bold;")
-        label_tor_y = QtWidgets.QLabel("Torsión Y")
-        label_tor_y.setAlignment(QtCore.Qt.AlignCenter)
-        label_tor_y.setStyleSheet("font-weight: bold;")
-        
-        torsion_layout.addWidget(label_tor_x, 1, 1)
-        torsion_layout.addWidget(label_tor_y, 1, 2)
-        
-        # Campos de resultados
-        self.label_relacion_x = QtWidgets.QLabel("Relación:")
-        self.le_relacion_x = QtWidgets.QLineEdit()
-        self.le_relacion_x.setReadOnly(True)
-        
-        self.label_irregularidad = QtWidgets.QLabel("Irregularidad:")
-        self.le_irregularidad_x = QtWidgets.QLineEdit()
-        self.le_irregularidad_x.setReadOnly(True)
-        
-        torsion_layout.addWidget(self.label_relacion_x, 2, 0)
-        torsion_layout.addWidget(self.le_relacion_x, 2, 1)
-        
-        torsion_layout.addWidget(self.label_irregularidad, 3, 0)
-        torsion_layout.addWidget(self.le_irregularidad_x, 3, 1)
-        
-        # Campos Y (misma estructura)
-        self.le_relacion_y = QtWidgets.QLineEdit()
-        self.le_relacion_y.setReadOnly(True)
-        self.le_irregularidad_y = QtWidgets.QLineEdit()
-        self.le_irregularidad_y.setReadOnly(True)
-        
-        torsion_layout.addWidget(self.le_relacion_y, 2, 2)
-        torsion_layout.addWidget(self.le_irregularidad_y, 3, 2)
-
-        # Botón ver tabla detallada
-        self.b_torsion_table = QtWidgets.QPushButton("Ver Tabla Detallada")
-        torsion_layout.addWidget(self.b_torsion_table, 0, 3)
-
-        # Campo para límite configurable
-        self.label_torsion_limit = QtWidgets.QLabel("Límite:")
-        self.le_torsion_limit = QtWidgets.QLineEdit("1.30")
-        self.le_torsion_limit.setMaximumWidth(60)
-        self.le_torsion_limit.setToolTip("Límite para irregularidad torsional (1.30 normal, 1.50 extrema)")
-
-        torsion_layout.addWidget(self.label_torsion_limit, 0, 4)
-        torsion_layout.addWidget(self.le_torsion_limit, 0, 5)
-        
-        parent_layout.addWidget(self.group_torsion)
-        
         
     def _setup_memory_tab(self):
         """Tab de memoria de cálculo con secciones organizadas"""

@@ -1104,19 +1104,23 @@ class AppBase(QMainWindow):
             self.ui.le_torsion_limit.setStyleSheet("QLineEdit { border: 2px solid red; }")
             return None
         
-    def _validate_torsion(self, ratio_x: float, ratio_y: float, limit: float):
+    def _validate_torsion(self, status_x: str, status_y: str):
         """Aplicar validación automática con colores"""
         # Validar dirección X
-        if ratio_x > limit:
+        if status_x == 'IRREGULAR':
             self.ui.le_relacion_x.setStyleSheet("QLineEdit { background-color: #ffcccc; font-weight: bold; }")
+            self.ui.le_irregularidad_x.setStyleSheet("QLineEdit { background-color: #ffcccc; font-weight: bold; }")
         else:
             self.ui.le_relacion_x.setStyleSheet("QLineEdit { background-color: #ccffcc; }")
+            self.ui.le_irregularidad_x.setStyleSheet("QLineEdit { background-color: #ccffcc; }")
         
         # Validar dirección Y
-        if ratio_y > limit:
+        if status_y == 'IRREGULAR':
             self.ui.le_relacion_y.setStyleSheet("QLineEdit { background-color: #ffcccc; font-weight: bold; }")
+            self.ui.le_irregularidad_y.setStyleSheet("QLineEdit { background-color: #ffcccc; font-weight: bold; }")
         else:
             self.ui.le_relacion_y.setStyleSheet("QLineEdit { background-color: #ccffcc; }")
+            self.ui.le_irregularidad_y.setStyleSheet("QLineEdit { background-color: #ccffcc; }")
             
     def _update_torsion_results(self):
         """Actualizar campos de resultados de torsion"""
@@ -1129,26 +1133,23 @@ class AppBase(QMainWindow):
             ratio_x = torsion_data.get('ratio_x', 0.0)
             ratio_y = torsion_data.get('ratio_y', 0.0)
             
-            # Actualizar camposunits_widge
-            self.ui.le_delta_max_x.setText(f"{torsion_data.get('delta_max_x', 0.0):.4f}")
-            self.ui.le_delta_prom_x.setText(f"{torsion_data.get('delta_prom_x', 0.0):.4f}")
-            self.ui.le_relacion_x.setText(f"{ratio_x:.3f}")
-            
-            self.ui.le_delta_max_y.setText(f"{torsion_data.get('delta_max_y', 0.0):.4f}")
-            self.ui.le_delta_prom_y.setText(f"{torsion_data.get('delta_prom_y', 0.0):.4f}")
-            self.ui.le_relacion_y.setText(f"{ratio_y:.3f}")
-            
-            # Validación con colores
-            self._validate_torsion(ratio_x,ratio_y,torsion_limit)
-            
             # Verificar irregularidad
             irregular_x = ratio_x > torsion_limit
             irregular_y = ratio_y > torsion_limit
             
-            status = "IRREGULAR" if (irregular_x or irregular_y) else "REGULAR"
-            color = "🔴" if (irregular_x or irregular_y) else "🟢"
-            self.show_info(f"✅ Irregularidad torsional calculada\n\n{color} Estado: {status}")
-                
+            status_x = "IRREGULAR" if (irregular_x) else "REGULAR"
+            status_y = "IRREGULAR" if (irregular_y) else "REGULAR"
+            
+            # Actualizar campos_units_widgets
+            self.ui.le_irregularidad_x.setText(status_x)
+            self.ui.le_relacion_x.setText(f"{ratio_x:.3f}")
+            
+            self.ui.le_irregularidad_y.setText(status_y)
+            self.ui.le_relacion_y.setText(f"{ratio_y:.3f}")
+            
+            # Validación con colores
+            self._validate_torsion(status_x,status_y)
+            
         except Exception as e:
             print(f"Error actualizando resultados de derivas: {e}")
 

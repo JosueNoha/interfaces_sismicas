@@ -450,38 +450,28 @@ class Ui_MainWindow(object):
         torsion_layout.addWidget(label_tor_y, 1, 2)
         
         # Campos de resultados
-        self.label_delta_max_x = QtWidgets.QLabel("Δ máx:")
-        self.le_delta_max_x = QtWidgets.QLineEdit()
-        self.le_delta_max_x.setReadOnly(True)
-        
-        self.label_delta_prom_x = QtWidgets.QLabel("Δ prom:")
-        self.le_delta_prom_x = QtWidgets.QLineEdit()
-        self.le_delta_prom_x.setReadOnly(True)
-        
         self.label_relacion_x = QtWidgets.QLabel("Relación:")
         self.le_relacion_x = QtWidgets.QLineEdit()
         self.le_relacion_x.setReadOnly(True)
         
-        torsion_layout.addWidget(self.label_delta_max_x, 2, 0)
-        torsion_layout.addWidget(self.le_delta_max_x, 2, 1)
+        self.label_irregularidad = QtWidgets.QLabel("Irregularidad:")
+        self.le_irregularidad_x = QtWidgets.QLineEdit()
+        self.le_irregularidad_x.setReadOnly(True)
         
-        torsion_layout.addWidget(self.label_delta_prom_x, 3, 0)
-        torsion_layout.addWidget(self.le_delta_prom_x, 3, 1)
+        torsion_layout.addWidget(self.label_relacion_x, 2, 0)
+        torsion_layout.addWidget(self.le_relacion_x, 2, 1)
         
-        torsion_layout.addWidget(self.label_relacion_x, 4, 0)
-        torsion_layout.addWidget(self.le_relacion_x, 4, 1)
+        torsion_layout.addWidget(self.label_irregularidad, 3, 0)
+        torsion_layout.addWidget(self.le_irregularidad_x, 3, 1)
         
         # Campos Y (misma estructura)
-        self.le_delta_max_y = QtWidgets.QLineEdit()
-        self.le_delta_max_y.setReadOnly(True)
-        self.le_delta_prom_y = QtWidgets.QLineEdit()
-        self.le_delta_prom_y.setReadOnly(True)
         self.le_relacion_y = QtWidgets.QLineEdit()
         self.le_relacion_y.setReadOnly(True)
+        self.le_irregularidad_y = QtWidgets.QLineEdit()
+        self.le_irregularidad_y.setReadOnly(True)
         
-        torsion_layout.addWidget(self.le_delta_max_y, 2, 2)
-        torsion_layout.addWidget(self.le_delta_prom_y, 3, 2)
-        torsion_layout.addWidget(self.le_relacion_y, 4, 2)
+        torsion_layout.addWidget(self.le_relacion_y, 2, 2)
+        torsion_layout.addWidget(self.le_irregularidad_y, 3, 2)
 
         # Botón ver tabla detallada
         self.b_torsion_table = QtWidgets.QPushButton("Ver Tabla Detallada")

@@ -4,6 +4,7 @@ Interfaz principal unificada con ComboBoxes de combinaciones
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 from ui.widgets.units_widget import UnitsWidget
+from ui.widgets.data_cards import ProjectDataCard,SeismicParamsCard
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -109,42 +110,64 @@ class Ui_MainWindow(object):
         self.tab_general = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(self.tab_general)
         
-        # Grupo de información del proyecto
-        self.group_project = QtWidgets.QGroupBox("Información del Proyecto")
-        project_layout = QtWidgets.QGridLayout(self.group_project)
+        # Scroll area
+        scroll = QtWidgets.QScrollArea()
+        scroll_widget = QtWidgets.QWidget()
+        scroll_layout = QtWidgets.QVBoxLayout(scroll_widget)
         
-        # Campos del proyecto
-        self.label_proyecto = QtWidgets.QLabel("Proyecto:")
-        self.le_proyecto = QtWidgets.QLineEdit()
-        self.label_ubicacion = QtWidgets.QLabel("Ubicación:")
-        self.le_ubicacion = QtWidgets.QLineEdit()
-        self.label_autor = QtWidgets.QLabel("Autor:")
-        self.le_autor = QtWidgets.QLineEdit()
-        self.label_fecha = QtWidgets.QLabel("Fecha:")
-        self.le_fecha = QtWidgets.QLineEdit()
+        # # Grupo de información del proyecto
+        # self.group_project = QtWidgets.QGroupBox("Información del Proyecto")
+        # project_layout = QtWidgets.QGridLayout(self.group_project)
         
-        project_layout.addWidget(self.label_proyecto, 0, 0)
-        project_layout.addWidget(self.le_proyecto, 0, 1)
-        project_layout.addWidget(self.label_ubicacion, 0, 2)
-        project_layout.addWidget(self.le_ubicacion, 0, 3)
-        project_layout.addWidget(self.label_autor, 1, 0)
-        project_layout.addWidget(self.le_autor, 1, 1)
-        project_layout.addWidget(self.label_fecha, 1, 2)
-        project_layout.addWidget(self.le_fecha, 1, 3)
+        # # Campos del proyecto
+        # self.label_proyecto = QtWidgets.QLabel("Proyecto:")
+        # self.le_proyecto = QtWidgets.QLineEdit()
+        # self.label_ubicacion = QtWidgets.QLabel("Ubicación:")
+        # self.le_ubicacion = QtWidgets.QLineEdit()
+        # self.label_autor = QtWidgets.QLabel("Autor:")
+        # self.le_autor = QtWidgets.QLineEdit()
+        # self.label_fecha = QtWidgets.QLabel("Fecha:")
+        # self.le_fecha = QtWidgets.QLineEdit()
         
-        layout.addWidget(self.group_project)
+        # project_layout.addWidget(self.label_proyecto, 0, 0)
+        # project_layout.addWidget(self.le_proyecto, 0, 1)
+        # project_layout.addWidget(self.label_ubicacion, 0, 2)
+        # project_layout.addWidget(self.le_ubicacion, 0, 3)
+        # project_layout.addWidget(self.label_autor, 1, 0)
+        # project_layout.addWidget(self.le_autor, 1, 1)
+        # project_layout.addWidget(self.label_fecha, 1, 2)
+        # project_layout.addWidget(self.le_fecha, 1, 3)
         
-        # Grupo de parámetros sísmicos (contenedor dinámico)
-        self.group_seismic_params = QtWidgets.QGroupBox("Parámetros Sísmicos")
-        self.seismic_params_layout = QtWidgets.QGridLayout(self.group_seismic_params)
-        layout.addWidget(self.group_seismic_params)
+        # layout.addWidget(self.group_project)
+        
+        # Card de datos del proyecto  
+        self.project_data_card = ProjectDataCard()
+        scroll_layout.addWidget(self.project_data_card)
+        
+        # Para compatibilidad con el código existente, crear referencias
+        self.le_proyecto = self.project_data_card.le_proyecto
+        self.le_ubicacion = self.project_data_card.le_ubicacion  
+        self.le_autor = self.project_data_card.le_autor
+        self.le_fecha = self.project_data_card.le_fecha
+        
+        # # Grupo de parámetros sísmicos (contenedor dinámico)
+        # self.group_seismic_params = QtWidgets.QGroupBox("Parámetros Sísmicos")
+        # self.seismic_params_layout = QtWidgets.QGridLayout(self.group_seismic_params)
+        # layout.addWidget(self.group_seismic_params)
+        
+        self.seismic_params_card = SeismicParamsCard()
+        scroll_layout.addWidget(self.seismic_params_card)
         
         # Widget de unidades de trabajo
         self.units_widget = UnitsWidget()
-        layout.addWidget(self.units_widget)
+        scroll_layout.addWidget(self.units_widget)
         
-        # Espaciador
-        layout.addStretch()
+        
+        # Configurar scroll
+        scroll.setWidget(scroll_widget)
+        scroll.setWidgetResizable(True)
+        layout.addWidget(scroll)
+        
         
         self.tabWidget.addTab(self.tab_general, "Datos Generales")
 

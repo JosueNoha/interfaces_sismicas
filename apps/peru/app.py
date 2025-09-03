@@ -9,7 +9,7 @@ from core.base.app_base import AppBase
 from core.config.app_config import PERU_CONFIG
 from core.utils.common_validations import create_validator
 from ui.main_window import Ui_MainWindow
-from PyQt5.QtWidgets import QLabel, QComboBox, QLineEdit
+from PyQt5.QtWidgets import QFrame, QComboBox, QLineEdit
 
 
 class PeruSeismicApp(AppBase):
@@ -50,46 +50,38 @@ class PeruSeismicApp(AppBase):
     def _add_peru_selectors(self):
         """Agregar selectores específicos de Perú"""
         try:
-            if not hasattr(self.ui, 'seismic_params_layout'):
+            if not hasattr(self.ui, 'seismic_params_card'):
                 return
                 
-            layout = self.ui.seismic_params_layout
-            current_row = layout.rowCount()
+            card = self.ui.seismic_params_card
             
             # Selector de zona sísmica
-            self.label_zona = QLabel("Zona Sísmica:")
             self.cb_zona = QComboBox()
             self.cb_zona.addItems(['1', '2', '3', '4'])  # Solo números
             self.cb_zona.setCurrentText('2')  # Lima por defecto
             self.cb_zona.currentIndexChanged.connect(self._actualize_zona)
             
-            layout.addWidget(self.label_zona, current_row, 0)
-            layout.addWidget(self.cb_zona, current_row, 1)
             
             # Selector de tipo de suelo
-            self.label_suelo = QLabel("Tipo de Suelo:")
             self.cb_suelo = QComboBox()
             self.cb_suelo.addItems(['S0', 'S1', 'S2', 'S3'])
             self.cb_suelo.setCurrentText('S1')
             self.cb_suelo.currentTextChanged.connect(self._actualize_suelo)
             
-            layout.addWidget(self.label_suelo, current_row, 2)
-            layout.addWidget(self.cb_suelo, current_row, 3)
-            
-            current_row += 1
             
             # Selector de categoría
-            self.label_categoria = QLabel("Categoría:")
             self.cb_categoria = QComboBox()
             self.cb_categoria.addItems(['A1', 'A2', 'B', 'C', 'D'])
             self.cb_categoria.setCurrentText('B')
             self.cb_categoria.currentTextChanged.connect(self._actualize_categoria)
             
-            layout.addWidget(self.label_categoria, current_row, 0)
-            layout.addWidget(self.cb_categoria, current_row, 1)
+            current_row = 0
+            card.add_field(current_row,0,'Zona Sísmica:',self.cb_zona,'cb_zona','Zona del Proyecto')
+            card.add_field(current_row,2,'Tipo de Suelo:',self.cb_suelo,'cb_suelo','Tipo de Suelo')
+            card.add_field(current_row,4,'Categoría:',self.cb_categoria,'cb_categoria','Categoría del Proyecto')
             
             # AGREGAR parámetros específicos E.030
-            self._add_peru_parameter_display(layout, current_row + 1)
+            self._add_peru_parameter_display(card,current_row+1)
             
         except Exception as e:
             print(f"Error agregando selectores Perú: {e}")
@@ -152,10 +144,10 @@ class PeruSeismicApp(AppBase):
         # Habilitar edición para A1 y D (valores variables)
         if cat in ['A1', 'D']:
             self.le_u_display.setReadOnly(False)
-            self.le_u_display.setStyleSheet("QLineEdit { background-color: white; }")
+            #self.le_u_display.setStyleSheet("QLineEdit { background-color: white; }")
         else:
             self.le_u_display.setReadOnly(True)
-            self.le_u_display.setStyleSheet("QLineEdit { background-color: #f0f0f0; }")
+            #self.le_u_display.setStyleSheet("QLineEdit { background-color: #f0f0f0; }")
             
     def _initialize_peru_defaults(self):
         """Inicializar valores por defecto de Perú después de crear la interfaz"""
@@ -176,57 +168,25 @@ class PeruSeismicApp(AppBase):
         except Exception as e:
             print(f"Error inicializando valores Perú: {e}")
 
-    def _add_peru_parameter_display(self, layout, start_row):
+    def _add_peru_parameter_display(self, card, current_row):
         """Agregar campos de parámetros específicos E.030 (solo lectura)"""
         try:
-            current_row = start_row
-            
-            # Parámetros E.030 (solo lectura)
-            readonly_style = "QLineEdit { background-color: #f0f0f0; }"
-            
-            # Fila Z, U
-            self.label_z_display = QLabel("Z:")
             self.le_z_display = QLineEdit()
             self.le_z_display.setReadOnly(True)
-            self.le_z_display.setStyleSheet(readonly_style)
-            
-            self.label_u_display = QLabel("U:")
             self.le_u_display = QLineEdit()
             self.le_u_display.setReadOnly(True)
-            self.le_u_display.setStyleSheet(readonly_style)
-            
-            layout.addWidget(self.label_z_display, current_row, 0)
-            layout.addWidget(self.le_z_display, current_row, 1)
-            layout.addWidget(self.label_u_display, current_row, 2)
-            layout.addWidget(self.le_u_display, current_row, 3)
-            
-            current_row += 1
-            
-            # Fila S, Tp, Tl
-            self.label_s_display = QLabel("S:")
             self.le_s_display = QLineEdit()
             self.le_s_display.setReadOnly(True)
-            self.le_s_display.setStyleSheet(readonly_style)
-            
-            self.label_tp_display = QLabel("Tp (s):")
             self.le_tp_display = QLineEdit()
             self.le_tp_display.setReadOnly(True)
-            self.le_tp_display.setStyleSheet(readonly_style)
-            
-            self.label_tl_display = QLabel("Tl (s):")
             self.le_tl_display = QLineEdit()
             self.le_tl_display.setReadOnly(True)
-            self.le_tl_display.setStyleSheet(readonly_style)
             
-            layout.addWidget(self.label_s_display, current_row, 0)
-            layout.addWidget(self.le_s_display, current_row, 1)
-            layout.addWidget(self.label_tp_display, current_row, 2)
-            layout.addWidget(self.le_tp_display, current_row, 3)
-            
-            current_row += 1
-            
-            layout.addWidget(self.label_tl_display, current_row, 0)
-            layout.addWidget(self.le_tl_display, current_row, 1)
+            card.add_field(current_row,0,'Z:',self.le_z_display,'le_z_display','Factor Z')
+            card.add_field(current_row,2,'S:',self.le_s_display,'le_s_display','Factor S')
+            card.add_field(current_row,4,'U:',self.le_u_display,'le_u_display','Factor U')
+            card.add_field(current_row+1,0,'Tp (s):',self.le_tp_display,'le_tp_display','Periodo Tp')
+            card.add_field(current_row+1,2,'Tl (s):',self.le_tl_display,'le_tl_display','Periodo Tl')
             
         except Exception as e:
             print(f"Error agregando parámetros Perú: {e}")

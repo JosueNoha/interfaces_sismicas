@@ -31,6 +31,9 @@ class AppBase(QMainWindow):
         self.ETABSObject = None
         self.SapModel = None
         
+        # Inicializar indicador de estado ETABS
+        self._update_etabs_status_indicator(connected=False)
+        
         # Atributos a guardar
         self.modal_data = None
         self.modal_results = None
@@ -45,6 +48,89 @@ class AppBase(QMainWindow):
         
         # Conectar señales
         self._connect_common_signals()
+        
+    def closeEvent(self, event):
+        """Manejar cierre de la aplicación"""
+        from PyQt5.QtWidgets import QMessageBox
+        
+        try:
+            # Cerrar modelo ETABS si está abierto
+            if self.ETABSObject or self.SapModel:
+                reply = QMessageBox.question(
+                    self, 
+                    'Cerrar aplicación',
+                    '¿Desea cerrar también el modelo ETABS abierto?',
+                    QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
+                    QMessageBox.No
+                )
+                
+                if reply == QMessageBox.Cancel:
+                    event.ignore()
+                    return
+                elif reply == QMessageBox.Yes:
+                    self._close_current_etabs_model()
+                else:
+                    self._disconnect_etabs()
+            
+            event.accept()
+            
+        except Exception as e:
+            print(f"Error al cerrar aplicación: {e}")
+            event.accept()
+            
+    def _block_all_etabs_signals(self, block=True):
+        """
+        Bloquear/desbloquear todas las señales relacionadas con ETABS
+        
+        Args:
+            block (bool): True para bloquear, False para desbloquear
+        """
+        try:
+            # Bloquear ComboBoxes de combinaciones
+            combo_widgets = [
+                self.ui.cb_comb_dynamic_x, 
+                self.ui.cb_comb_dynamic_y,
+                self.ui.cb_comb_static_x, 
+                self.ui.cb_comb_static_y,
+                self.ui.cb_comb_displacement_x, 
+                self.ui.cb_comb_displacement_y
+            ]
+            
+            for combo in combo_widgets:
+                if combo is not None:
+                    combo.blockSignals(block)
+            
+            # Bloquear botones principales que dependen de ETABS
+            buttons_to_block = [
+                'b_actualizar', 
+                'b_reporte',
+                'b_connect_etabs',
+                'b_open_etabs',
+                'b_disconnect_etabs'
+            ]
+            
+            for button_name in buttons_to_block:
+                if hasattr(self.ui, button_name):
+                    button = getattr(self.ui, button_name)
+                    if button is not None:
+                        button.blockSignals(block)
+                        button.setEnabled(not block)  # Deshabilitar durante bloqueo
+            
+            # Bloquear cards de análisis si existen
+            analysis_cards = ['modal_card', 'drift_card', 'torsion_card']
+            for card_name in analysis_cards:
+                if hasattr(self.ui, card_name):
+                    card = getattr(self.ui, card_name)
+                    if card is not None:
+                        card.blockSignals(block)
+            
+            if block:
+                print("🔇 Señales ETABS bloqueadas")
+            else:
+                print("🔊 Señales ETABS desbloqueadas")
+                
+        except Exception as e:
+            print(f"Error controlando señales ETABS: {e}")
 
     def _setup_icon(self):
         """Configurar icono de la aplicación"""
@@ -54,6 +140,10 @@ class AppBase(QMainWindow):
 
     def _connect_common_signals(self):
         """Conectar señales comunes"""
+        # Conexiones ETABS
+        self.ui.b_connect_etabs.clicked.connect(self._connect_to_open_etabs)
+        self.ui.b_open_etabs.clicked.connect(self._open_etabs_file)
+        
         # Análisis Modal
         self._connect_modal_card_signals()
         
@@ -155,6 +245,71 @@ class AppBase(QMainWindow):
                     label.setText("Sin Descripción")
                     label.setStyleSheet("color: gray;")
                     label.setToolTip("No hay descripción")
+                    
+    def _update_etabs_status_indicator(self, connected=False, model_name="", error_msg=""):
+        """
+        Actualizar indicador visual de estado ETABS
+        
+        Args:
+            connected (bool): Si está conectado
+            model_name (str): Nombre del modelo
+            error_msg (str): Mensaje de error si aplica
+        """
+        if not hasattr(self.ui, 'lbl_etabs_status'):
+            return
+        
+        if connected:
+            # Estado conectado
+            if model_name:
+                display_name = model_name[:25] + "..." if len(model_name) > 25 else model_name
+                status_text = f"🟢 {display_name}"
+            else:
+                status_text = "🟢 Conectado"
+            
+            self.ui.lbl_etabs_status.setText(status_text)
+            self.ui.lbl_etabs_status.setStyleSheet("""
+                QLabel {
+                    padding: 5px 10px;
+                    border: 1px solid #28a745;
+                    border-radius: 4px;
+                    background-color: #d4edda;
+                    color: #155724;
+                    font-size: 11px;
+                    font-weight: bold;
+                }
+            """)
+            self.ui.lbl_etabs_status.setToolTip(f"Conectado a: {model_name}" if model_name else "Conectado a ETABS")
+        
+        elif error_msg:
+            # Estado de error
+            self.ui.lbl_etabs_status.setText("🔴 Error conexión")
+            self.ui.lbl_etabs_status.setStyleSheet("""
+                QLabel {
+                    padding: 5px 10px;
+                    border: 1px solid #dc3545;
+                    border-radius: 4px;
+                    background-color: #f8d7da;
+                    color: #721c24;
+                    font-size: 11px;
+                    font-weight: bold;
+                }
+            """)
+            self.ui.lbl_etabs_status.setToolTip(f"Error: {error_msg}")
+        
+        else:
+            # Estado desconectado
+            self.ui.lbl_etabs_status.setText("⚪ No conectado")
+            self.ui.lbl_etabs_status.setStyleSheet("""
+                QLabel {
+                    padding: 5px 10px;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    background-color: #f8f9fa;
+                    color: #6c757d;
+                    font-size: 11px;
+                }
+            """)
+            self.ui.lbl_etabs_status.setToolTip("No hay conexión con ETABS")
     
     def get_project_data(self):
         """Obtener datos del proyecto desde interfaz"""
@@ -281,15 +436,157 @@ class AppBase(QMainWindow):
             
             if model_info['connected']:
                 print(f"✅ Conectado a ETABS: {model_info['model_name']}")
-                
+                self._update_etabs_status_indicator(
+                connected=True, 
+                model_name=model_info['model_name'])
+                self.clear_figures()
                 return True
             else:
-                self.show_warning(f"Error en conexión: {model_info.get('error', 'Desconocido')}")
+                error_msg = model_info.get('error', 'Error desconocido')
+                self.show_warning(f"Error en conexión: {error_msg}")
+                self._update_etabs_status_indicator(connected=False, error_msg=error_msg)
         else:
+            error_msg = "ETABS no está abierto"
             self.show_warning("No se pudo conectar con ETABS. Verifique que esté abierto.")
+            self._update_etabs_status_indicator(connected=False, error_msg=error_msg)
         
         return False
+    
+    def _connect_to_open_etabs(self):
+        """Conectar al modelo ETABS ya abierto"""
+        success = False
+        if not  self.SapModel:
+            success = self._connect_etabs()
+        if success:
+            self.show_message("Conexión", "Conectado exitosamente al modelo ETABS abierto", 'info')
+
+    def _open_etabs_file(self):
+        """Abrir un archivo específico de ETABS"""
+        from PyQt5.QtWidgets import QFileDialog
+        from core.utils.etabs_utils import open_etabs_file, validate_model_connection
+        
+        # Cerrar modelo actual si existe
+        self._close_current_etabs_model()
+        
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Seleccionar archivo ETABS",
+            "",
+            "Archivos ETABS (*.edb);;Todos los archivos (*)"
+        )
+        
+        if file_path:
+            # Actualizar indicador a "cargando"
+            self.ui.lbl_etabs_status.setText("🟡 Abriendo...")
+            self.ui.lbl_etabs_status.setStyleSheet("""
+                QLabel {
+                    padding: 5px 10px;
+                    border: 1px solid #ffc107;
+                    border-radius: 4px;
+                    background-color: #fff3cd;
+                    color: #856404;
+                    font-size: 11px;
+                    font-weight: bold;
+                }
+            """)
+            
+            self.ETABSObject, self.SapModel = open_etabs_file(file_path)
+            
+            if self.SapModel:
+                # Validar conexión y obtener info del modelo
+                model_info = validate_model_connection(self.SapModel)
+                model_name = model_info.get('model_name', file_path.split('/')[-1])
                 
+                self.show_message("Éxito", f"Archivo ETABS abierto:\n{file_path}", 'info')
+                self._update_etabs_status_indicator(connected=True, model_name=model_name)
+                self.refresh_all_combinations()
+                self.update_all_data()
+            else:
+                error_msg = f"No se pudo abrir: {file_path.split('/')[-1]}"
+                self.show_message("Error", f"No se pudo abrir el archivo:\n{file_path}", 'error')
+                self._update_etabs_status_indicator(connected=False, error_msg=error_msg)
+                
+    def _run_analysis_with_progress(self):
+        """Ejecutar análisis mostrando progreso al usuario"""
+        from PyQt5.QtWidgets import QProgressDialog
+        from PyQt5.QtCore import Qt
+        
+        progress = QProgressDialog("Ejecutando análisis ETABS...", "Cancelar", 0, 0, self)
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.show()
+        
+        try:
+            ret = self.SapModel.Analyze.RunAnalysis()
+            progress.close()
+            return ret == 0
+        except:
+            progress.close()
+            return False
+        
+    def _close_current_etabs_model(self):
+        """Cerrar modelo ETABS actual si existe"""
+        if self.ETABSObject or self.SapModel:
+            try:
+                from core.utils.etabs_utils import close_etabs_model
+                # Bloquear señales durante el cierre
+                self._block_all_etabs_signals(block=True)
+            
+                success = close_etabs_model(self.ETABSObject)
+                
+                # Limpiar referencias
+                self.ETABSObject = None
+                self.SapModel = None
+                
+                # Actualizar indicador
+                self._update_etabs_status_indicator(connected=False)
+                
+                # Limpiar combos
+                self._set_disconnected_message()
+                
+                if success:
+                    print("📁 Modelo ETABS cerrado")
+                    
+                # Desbloquear señales
+                self._block_all_etabs_signals(block=False)
+                
+                return success
+                
+            except Exception as e:
+                print(f"Error cerrando modelo ETABS: {e}")
+                return False
+        
+        return True
+
+    def _disconnect_etabs(self):
+        """Desconectar de ETABS sin cerrar"""
+        if self.ETABSObject or self.SapModel:
+            try:
+                # Bloquear señales durante la desconexión
+                self._block_all_etabs_signals(block=True)
+                
+                from core.utils.etabs_utils import disconnect_etabs
+                self.ETABSObject, self.SapModel = disconnect_etabs()
+                
+                # Actualizar indicador
+                self._update_etabs_status_indicator(connected=False)
+                
+                # Limpiar combos
+                self._set_disconnected_message()
+                
+                print("🔌 Desconectado de ETABS")
+                
+                # Desbloquear señales
+                self._block_all_etabs_signals(block=False)
+                
+                return True
+                
+            except Exception as e:
+                print(f"Error desconectando de ETABS: {e}")
+                return False
+        
+        return True
+                        
               
     # Selección de combinaciones desde ETABS  
     def refresh_all_combinations(self):
@@ -450,7 +747,7 @@ class AppBase(QMainWindow):
             
         from core.utils.etabs_utils import get_modal_data,process_modal_data
         if self.modal_data is None:
-            modal_data = get_modal_data(self.SapModel)
+            modal_data = get_modal_data(self.SapModel,progress_callback=self._run_analysis_with_progress)
             self.modal_data = modal_data
             filtered_modal_data = self._filter_modal_columns(modal_data)
             self.sismo.tables.modal = filtered_modal_data
@@ -569,8 +866,8 @@ class AppBase(QMainWindow):
             from core.utils.etabs_utils import get_story_forces, get_story_data, set_units,set_envelopes_for_display
             set_units(self.SapModel,'Ton_m_C')
             set_envelopes_for_display(self.SapModel)
-            story_forces = get_story_forces(self.SapModel)
-            story_data = get_story_data(self.SapModel)
+            story_forces = get_story_forces(self.SapModel,progress_callback=self._run_analysis_with_progress)
+            story_data = get_story_data(self.SapModel,progress_callback=self._run_analysis_with_progress)
             
             if story_forces is None:
                 self.show_error("No se pudieron obtener fuerzas de piso")
@@ -1079,6 +1376,12 @@ class AppBase(QMainWindow):
             setattr(self.sismo, 'dynamic_shear_fig', None)
             setattr(self.sismo, 'fig_displacements', None)
             setattr(self.sismo, 'fig_drifts', None)
+            
+    def clear_figures(self):
+        setattr(self.sismo, 'static_shear_fig', None)
+        setattr(self.sismo, 'dynamic_shear_fig', None)
+        setattr(self.sismo, 'fig_displacements', None)
+        setattr(self.sismo, 'fig_drifts', None)
         
             
     def get_current_units(self):

@@ -31,6 +31,93 @@ def connect_to_etabs():
         print(f"Error conectando con ETABS: {e}")
         return None, None
 
+def open_etabs_file(file_path):
+    """
+    Abrir un archivo específico de ETABS
+    
+    Args:
+        file_path (str): Ruta al archivo .edb a abrir
+        
+    Returns:
+        tuple: (ETABSObject, SapModel) si exitoso, (None, None) si falla
+    """
+    try:
+        import comtypes.client
+        
+        # Crear nueva instancia de ETABS
+        helper = comtypes.client.CreateObject('ETABSv1.Helper')
+        helper = helper.QueryInterface(comtypes.gen.ETABSv1.cHelper)
+        
+        # Crear objeto ETABS
+        ETABSObject = helper.CreateObjectProgID("CSI.ETABS.API.ETABSObject")
+        
+        # Inicializar y abrir archivo
+        ETABSObject.ApplicationStart()
+        SapModel = ETABSObject.SapModel
+        
+        # Abrir el archivo específico
+        ret = SapModel.File.OpenFile(file_path)
+        
+        if ret == 0:  # 0 = success en API de ETABS
+            print(f"✅ Archivo ETABS abierto: {file_path}")
+            return ETABSObject, SapModel
+        else:
+            print(f"❌ Error abriendo archivo: {file_path}")
+            return None, None
+            
+    except Exception as e:
+        print(f"Error abriendo archivo ETABS: {e}")
+        return None, None
+
+def close_etabs_model(ETABSObject):
+    """
+    Cerrar modelo ETABS abierto
+    
+    Args:
+        ETABSObject: Objeto ETABS principal
+        SapModel: Modelo ETABS (opcional)
+        
+    Returns:
+        bool: True si se cerró correctamente
+    """
+    try:
+        
+        if ETABSObject:
+            # Cerrar aplicación ETABS si fue abierta por la API
+            try:
+                ETABSObject.ApplicationExit(False)  # False = no guardar automáticamente
+                print("✅ ETABS cerrado correctamente")
+                return True
+            except:
+                # Si falla el cierre completo, al menos limpiar referencias
+                pass
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error cerrando ETABS: {e}")
+        return False
+
+
+def disconnect_etabs():
+    """
+    Desconectar de ETABS sin cerrar la aplicación
+    
+    Args:
+        ETABSObject: Objeto ETABS principal
+        SapModel: Modelo ETABS
+        
+    Returns:
+        tuple: (None, None) para limpiar referencias
+    """
+    try:
+        # Solo limpiar referencias, no cerrar ETABS
+        print("🔌 Desconectado de ETABS")
+        return None, None
+        
+    except Exception as e:
+        print(f"Error desconectando de ETABS: {e}")
+        return None, None
 
 def set_units(SapModel, unit_system):
     """
@@ -59,13 +146,14 @@ def set_units(SapModel, unit_system):
         return False
 
 
-def get_table(SapModel, table_name):
+def get_table(SapModel, table_name, progress_callback=None):
     """
     Obtener tabla de resultados de ETABS como DataFrame
     
     Args:
         SapModel: Objeto modelo de ETABS
         table_name (str): Nombre de la tabla a obtener
+        progress_callback: Función callback para mostrar progreso (opcional)
         
     Returns:
         tuple: (success: bool, dataframe: pd.DataFrame or None)
@@ -76,12 +164,39 @@ def get_table(SapModel, table_name):
         
         if table_name not in MyName:
             print(f"Tabla '{table_name}' no encontrada")
-            print(f"Tablas disponibles: {MyName[:10]}...")  # Mostrar primeras 10
-            return False, None
+        
+           # Usar callback de progreso si está disponible
+            if progress_callback:
+                success = progress_callback()
+                if not success:
+                    return False, None
+            else:
+                # Ejecutar análisis directamente
+                try:
+                    ret = SapModel.Analyze.RunAnalysis()
+                    if ret != 0:
+                        print(f"Error ejecutando análisis: código {ret}")
+                        return False, None
+                    
+                    print("Análisis completado.")
+                    
+                except Exception as e:
+                    print(f"Error ejecutando análisis del modelo: {e}")
+                    return False, None
+            
+            # Verificar tablas disponibles después del análisis
+            [NumberNames, MyName, MyImport, MyUnit, MyDescription] = SapModel.DatabaseTables.GetAvailableTables()
+            
+            if table_name not in MyName:
+                print(f"❌ Tabla '{table_name}' no disponible incluso después del análisis")
+                print(f"Tablas disponibles: {MyName[:10]}...")  # Mostrar primeras 10
+                return False, None
+            else:
+                print(f"✅ Tabla '{table_name}' ahora disponible")
         
         # Obtener datos de la tabla
         [_, _ ,FieldsKeysIncluded, NumberRecords, TableData,_] = \
-           SapModel.DatabaseTables.GetTableForDisplayArray(table_name,FieldKeyList =  "", GroupName = "")
+           SapModel.DatabaseTables.GetTableForDisplayArray(table_name, FieldKeyList="", GroupName="")
         
         if NumberRecords == 0:
             print(f"Tabla '{table_name}' sin registros")
@@ -90,7 +205,7 @@ def get_table(SapModel, table_name):
         # Convertir a DataFrame de pandas
         if len(TableData) > 0:
             columns = FieldsKeysIncluded  # Primera fila son los headers
-            data = np.array(TableData).reshape(NumberRecords,len(columns))   # Resto son los datos
+            data = np.array(TableData).reshape(NumberRecords, len(columns))   # Resto son los datos
             df = pd.DataFrame(data, columns=columns)
             
             # Intentar convertir columnas numéricas
@@ -273,15 +388,15 @@ def set_envelopes_for_display(SapModel, set_envelopes=True):
 
 # Funciones específicas para obtener datos comunes
 
-def get_story_data(SapModel):
+def get_story_data(SapModel,progress_callback=None):
     """Obtener información general de pisos"""
-    success, data = get_table(SapModel, 'Story Definitions')
+    success, data = get_table(SapModel, 'Story Definitions',progress_callback=progress_callback)
     return data if success else None
 
 
-def get_modal_data(SapModel):
+def get_modal_data(SapModel,progress_callback=None):
     """Obtener datos del análisis modal"""
-    success, data = get_table(SapModel, 'Modal Participating Mass Ratios')
+    success, data = get_table(SapModel, 'Modal Participating Mass Ratios',progress_callback=progress_callback)
     if success and data is not None:
         # Filtrar solo resultados modales
         modal_data = data[data['Case'] == 'Modal'].copy()
@@ -289,21 +404,21 @@ def get_modal_data(SapModel):
     return None
 
 
-def get_drift_data(SapModel):
+def get_drift_data(SapModel,progress_callback=None):
     """Obtener datos de derivas de entrepiso"""
-    success, data = get_table(SapModel, 'Story Drifts')
+    success, data = get_table(SapModel, 'Story Drifts',progress_callback=progress_callback)
     return data if success else None
 
 
-def get_displacement_data(SapModel):
+def get_displacement_data(SapModel,progress_callback=None):
     """Obtener datos de desplazamientos"""
-    success, data = get_table(SapModel, 'Story Max Over Avg Displacements')
+    success, data = get_table(SapModel, 'Story Max Over Avg Displacements',progress_callback=progress_callback)
     return data if success else None
 
 
-def get_story_forces(SapModel):
+def get_story_forces(SapModel,progress_callback=None):
     """Obtener fuerzas de piso (cortantes, momentos)"""
-    success, data = get_table(SapModel, 'Story Forces')
+    success, data = get_table(SapModel, 'Story Forces',progress_callback=progress_callback)
     return data if success else None
 
 
@@ -340,27 +455,27 @@ def get_base_shear(SapModel, story_name=None):
         return None
 
 
-def get_torsion_data(SapModel):
+def get_torsion_data(SapModel,progress_callback=None):
     """Obtener datos de irregularidad torsional"""
-    success, data = get_table(SapModel, 'Story Max Over Avg Drifts')
+    success, data = get_table(SapModel, 'Story Max Over Avg Drifts',progress_callback=progress_callback)
     return data if success else None
 
 
-def get_mass_data(SapModel):
+def get_mass_data(SapModel,progress_callback=None):
     """Obtener datos de masa por piso"""
-    success, data = get_table(SapModel, 'Assembled Joint Masses')
+    success, data = get_table(SapModel, 'Assembled Joint Masses',progress_callback=progress_callback)
     return data if success else None
 
 
-def get_center_of_mass(SapModel):
+def get_center_of_mass(SapModel,progress_callback=None):
     """Obtener centro de masa por piso"""
-    success, data = get_table(SapModel, 'Centers Of Mass And Rigidity')
+    success, data = get_table(SapModel, 'Centers Of Mass And Rigidity',progress_callback=progress_callback)
     return data if success else None
 
 
-def get_diaphragm_data(SapModel):
+def get_diaphragm_data(SapModel,progress_callback=None):
     """Obtener datos de diafragmas"""
-    success, data = get_table(SapModel, 'Diaphragm Center Of Mass Displacements')
+    success, data = get_table(SapModel, 'Diaphragm Center Of Mass Displacements',progress_callback=progress_callback)
     return data if success else None
 
 
@@ -612,12 +727,14 @@ def update_seismic_combinations(ui_combo_widgets, SapModel=None):
         for cbox in ui_combo_widgets:
             if cbox is not None:
                 current_selection = cbox.currentText()
+                cbox.blockSignals(True)
                 cbox.clear()
                 cbox.addItems(all_seismic)
                 
                 # Restaurar selección si aún existe
                 if current_selection in all_seismic:
                     cbox.setCurrentText(current_selection)
+                cbox.blockSignals(False)
         
         return True
         

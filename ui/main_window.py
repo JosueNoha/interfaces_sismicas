@@ -15,12 +15,26 @@ class Ui_MainWindow(object):
         MainWindow.resize(1200, 800)
         MainWindow.setMinimumSize(QtCore.QSize(1000, 600))
         
+        # Aplicar estilo principal a la ventana
+        self._apply_main_window_styles(MainWindow)
+        
         # Widget central
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
         
+        # Estilo del widget central
+        self.centralwidget.setStyleSheet("""
+            QWidget#centralwidget {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ffffff, stop:1 #f8f9fa);
+                border: none;
+            }
+        """)
+            
         # Layout principal
         self.main_layout = QtWidgets.QVBoxLayout(self.centralwidget)
+        self.main_layout.setContentsMargins(20, 20, 20, 20)
+        self.main_layout.setSpacing(15)
         
         # Header con título
         self._setup_header()
@@ -39,6 +53,97 @@ class Ui_MainWindow(object):
         
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
+        
+    def _apply_main_window_styles(self, MainWindow):
+        """Aplicar estilos principales a la ventana"""
+        MainWindow.setStyleSheet("""
+            /* ===== VENTANA PRINCIPAL ===== */
+            QMainWindow {
+                background-color: #ffffff;
+                color: #212121;
+                font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+                font-size: 11px;
+            }
+            
+            /* ===== STATUSBAR ===== */
+            QStatusBar {
+                background-color: #f5f5f5;
+                border-top: 1px solid #e0e0e0;
+                color: #666666;
+                padding: 4px 8px;
+                font-size: 10px;
+            }
+            
+            QStatusBar::item {
+                border: none;
+            }
+            
+            /* ===== SCROLLAREAS GLOBALES ===== */
+            QScrollArea {
+                border: none;
+                background-color: transparent;
+            }
+            
+            QScrollBar:vertical {
+                background: #f5f5f5;
+                width: 12px;
+                border-radius: 6px;
+                margin: 0;
+            }
+            
+            QScrollBar::handle:vertical {
+                background: #bdbdbd;
+                border-radius: 6px;
+                margin: 2px;
+                min-height: 20px;
+            }
+            
+            QScrollBar::handle:vertical:hover {
+                background: #9e9e9e;
+            }
+            
+            QScrollBar::handle:vertical:pressed {
+                background: #757575;
+            }
+            
+            QScrollBar::add-line:vertical,
+            QScrollBar::sub-line:vertical {
+                border: none;
+                background: none;
+                height: 0px;
+            }
+            
+            QScrollBar::add-page:vertical,
+            QScrollBar::sub-page:vertical {
+                background: transparent;
+            }
+            
+            /* ===== SCROLLBAR HORIZONTAL ===== */
+            QScrollBar:horizontal {
+                background: #f5f5f5;
+                height: 12px;
+                border-radius: 6px;
+                margin: 0;
+            }
+            
+            QScrollBar::handle:horizontal {
+                background: #bdbdbd;
+                border-radius: 6px;
+                margin: 2px;
+                min-width: 20px;
+            }
+            
+            QScrollBar::handle:horizontal:hover {
+                background: #9e9e9e;
+            }
+            
+            QScrollBar::add-line:horizontal,
+            QScrollBar::sub-line:horizontal {
+                border: none;
+                background: none;
+                width: 0px;
+            }
+        """)
         
     def _connect_memory_signals(self):
         """Conectar señales de la pestaña de memoria"""
@@ -80,17 +185,53 @@ class Ui_MainWindow(object):
                 self.ui._update_text_status('cargas', True)
 
     def _setup_header(self):
-        """Configurar header con título"""
+        """Configurar header con título mejorado"""
         header_layout = QtWidgets.QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 20)  # NUEVO: Margen inferior
         
-        self.label_title = QtWidgets.QLabel(self.centralwidget)
+        # Container del título con estilo
+        title_container = QtWidgets.QWidget()
+        title_container.setStyleSheet("""
+            QWidget {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                    stop:0 #2196f3, stop:1 #1976d2);
+                border-radius: 12px;
+                padding: 15px;
+                margin: 0 20px;
+            }
+        """)
+        
+        title_layout = QtWidgets.QHBoxLayout(title_container)
+        title_layout.setContentsMargins(20, 10, 20, 10)
+        
+        # Icono del título
+        icon_label = QtWidgets.QLabel()
+        icon_label.setText("🏗️")  # Emoji de construcción
+        icon_label.setStyleSheet("""
+            font-size: 24px;
+            color: white;
+            margin-right: 15px;
+        """)
+        
+        self.label_title = QtWidgets.QLabel()
         font = QtGui.QFont()
-        font.setPointSize(18)
+        font.setPointSize(20)  # MEJORA: Tamaño más grande
         font.setBold(True)
+        font.setFamily("Segoe UI")  # NUEVO: Fuente específica
         self.label_title.setFont(font)
         self.label_title.setAlignment(QtCore.Qt.AlignCenter)
+        self.label_title.setStyleSheet("""
+            color: white;
+            font-weight: 600;
+            background: transparent;
+            padding: 0;
+            margin: 0;
+        """)
         
-        header_layout.addWidget(self.label_title)
+        title_layout.addWidget(icon_label)
+        title_layout.addWidget(self.label_title, 1)
+        
+        header_layout.addWidget(title_container)
         self.main_layout.addLayout(header_layout)
 
     def _setup_tabs(self):
@@ -337,27 +478,109 @@ class Ui_MainWindow(object):
 
 
     def _setup_bottom_buttons(self):
-        """Configurar botones inferiores"""
-        buttons_layout = QtWidgets.QHBoxLayout()
+        """Configurar botones inferiores con estilo mejorado"""
+        buttons_container = QtWidgets.QWidget()
+        buttons_container.setStyleSheet("""
+            QWidget {
+                background-color: #f8f9fa;
+                border: 1px solid #e9ecef;
+                border-radius: 12px;
+                padding: 15px;
+                margin-top: 15px;
+            }
+        """)
+        
+        buttons_layout = QtWidgets.QHBoxLayout(buttons_container)
+        buttons_layout.setSpacing(15)
+        
+        # Botones ETABS
+        etabs_layout = QtWidgets.QHBoxLayout()
+        
+        self.b_connect_etabs = QtWidgets.QPushButton("Conectar ETABS")
+        self.b_connect_etabs.setMinimumSize(QtCore.QSize(120, 30))
+        etabs_layout.addWidget(self.b_connect_etabs)
+        
+        self.b_open_etabs = QtWidgets.QPushButton("Abrir Archivo ETABS")
+        self.b_open_etabs.setMinimumSize(QtCore.QSize(140, 30))
+        etabs_layout.addWidget(self.b_open_etabs)
+        
+        # Indicador de estado ETABS
+        self.lbl_etabs_status = QtWidgets.QLabel("⚪ No conectado")
+        self.lbl_etabs_status.setStyleSheet("""
+            QLabel {
+                padding: 5px 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                background-color: #f8f9fa;
+                color: #6c757d;
+                font-size: 11px;
+            }
+        """)
+        self.lbl_etabs_status.setMinimumSize(QtCore.QSize(200, 30))
+        etabs_layout.addWidget(self.lbl_etabs_status)
+        
+        buttons_layout.addLayout(etabs_layout)
         
         # Espaciador
         spacer = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         buttons_layout.addItem(spacer)
         
-        # Botón actualizar
-        self.b_actualizar = QtWidgets.QPushButton("Actualizar Datos")
-        self.b_actualizar.setMinimumSize(QtCore.QSize(120, 30))
+        # Estilo común para botones principales
+        button_style = """
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ffffff, stop:1 #f8f9fa);
+                border: 2px solid #dee2e6;
+                border-radius: 8px;
+                color: #495057;
+                font-weight: 600;
+                font-size: 12px;
+                padding: 12px 20px;
+                min-width: 140px;
+                min-height: 44px;
+            }
+            
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #e3f2fd, stop:1 #bbdefb);
+                border-color: #2196f3;
+                color: #1976d2;
+            }
+            
+            QPushButton:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #bbdefb, stop:1 #90caf9);
+                border-color: #1976d2;
+            }
+            
+            QPushButton:disabled {
+                background: #f5f5f5;
+                border-color: #e0e0e0;
+                color: #bdbdbd;
+            }
+        """
+        
+        # Botón actualizar con icono
+        self.b_actualizar = QtWidgets.QPushButton("🔄 Actualizar Datos")
+        self.b_actualizar.setStyleSheet(button_style)
         buttons_layout.addWidget(self.b_actualizar)
         
-        # Botón reporte
-        self.b_reporte = QtWidgets.QPushButton("Generar Reporte")
-        self.b_reporte.setMinimumSize(QtCore.QSize(120, 30))
+        # Botón reporte con icono y estilo destacado
+        self.b_reporte = QtWidgets.QPushButton("📄 Generar Reporte")
+        report_style = button_style.replace(
+            "stop:0 #ffffff, stop:1 #f8f9fa",
+            "stop:0 #4caf50, stop:1 #388e3c"
+        ).replace("color: #495057;", "color: white;").replace(
+            "stop:0 #e3f2fd, stop:1 #bbdefb",
+            "stop:0 #66bb6a, stop:1 #4caf50"
+        )
+        self.b_reporte.setStyleSheet(report_style)
         buttons_layout.addWidget(self.b_reporte)
         
         # Espaciador
         buttons_layout.addItem(spacer)
         
-        self.main_layout.addLayout(buttons_layout)
+        self.main_layout.addWidget(buttons_container)
 
     def retranslateUi(self, MainWindow):
         """Configurar textos de la interfaz"""

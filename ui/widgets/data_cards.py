@@ -5,7 +5,7 @@ Widget tipo card/tarjeta para datos del proyecto
 
 from PyQt5.QtWidgets import (QFrame, QVBoxLayout, QHBoxLayout, QGridLayout, 
                             QLabel, QLineEdit, QWidget, QSizePolicy, QComboBox,
-                            QDoubleSpinBox,QPushButton)
+                            QCheckBox,QPushButton)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont, QPixmap, QPainter, QPainterPath
 from .seismic_params_widget import SeismicParamsWidget
@@ -162,65 +162,230 @@ class DataCard(QFrame):
         if field_name:
             self.fields[field_name] = widget
             setattr(self, field_name, widget)
+            
+    def add_widget(self, row, col, widget, field_name=None, tooltip="", colspan=1):
+        """
+        Agregar un widget sin label a la card
+        
+        Args:
+            row: Fila en el grid
+            col: Columna inicial
+            widget: Widget a agregar
+            field_name: Nombre interno del campo (opcional)
+            tooltip: Tooltip descriptivo
+            colspan: Número de columnas que ocupa el widget (default: 1)
+        """
+        # Aplicar estilo al widget
+        self._apply_field_style(widget)
+        
+        if tooltip:
+            widget.setToolTip(tooltip)
+        
+        # Agregar al layout con colspan
+        self.content_layout.addWidget(widget, row, col, 1, colspan)
+        
+        # Almacenar referencia
+        if field_name:
+            self.fields[field_name] = widget
+            setattr(self, field_name, widget)
     
     def _apply_field_style(self, widget):
-        """Aplicar estilo base a los campos"""
+        """Aplicar estilo base a los campos usando configuración centralizada"""
         widget_type = widget.__class__.__name__
         
-        if widget_type in ['QLineEdit', 'QSpinBox', 'QDoubleSpinBox']:
-            widget.setStyleSheet("""
-                QLineEdit, QSpinBox, QDoubleSpinBox {
-                    padding: 10px 12px;
-                    border: 2px solid #e0e0e0;
-                    border-radius: 8px;
-                    background-color: #fafafa;
-                    font-size: 11px;
-                    color: #333333;
+        # Configuración base para todos los widgets
+        base_config = {
+            'padding': '10px 12px',
+            'border': '2px solid #e0e0e0',
+            'border_radius': '8px',
+            'background_color': '#fafafa',
+            'font_size': '11px',
+            'color': '#333333',
+            'min_height': '36px'
+        }
+        
+        # Configuraciones específicas por tipo
+        widget_configs = {
+            'input_widgets': {
+                'types': ['QLineEdit', 'QSpinBox', 'QDoubleSpinBox'],
+                'config': base_config,
+                'height': 38,
+                'size_policy': (QSizePolicy.Expanding, QSizePolicy.Fixed)
+            },
+            'QComboBox': {
+                'types': ['QComboBox'],
+                'config': {**base_config, 'extra_css': """
+                    QComboBox::drop-down { border: none; width: 20px; }
+                    QComboBox::down-arrow { image: none; border: none; width: 12px; height: 12px; }
+                """},
+                'height': 38,
+                'size_policy': (QSizePolicy.Expanding, QSizePolicy.Fixed)
+            },
+            'QLabel': {
+                'types': ['QLabel'],
+                'config': {
+                    'color': '#424242',
+                    'font_weight': '600',
+                    'font_size': '11px',
+                    'background': 'transparent',
+                    'border': 'none',
+                    'min_width': '70px',
+                    'padding': '2px 0px'
                 }
+            },
+            'QPushButton': {
+                'types': ['QPushButton'],
+                'config': {
+                    'background_color': '#f5f5f5',
+                    'color': '#424242',
+                    'border': '2px solid #e0e0e0',
+                    'padding': '10px 16px',
+                    'border_radius': '8px',
+                    'font_weight': '500',
+                    'font_size': '11px',
+                    'min_height': '36px'
+                },
+                'height': 38,
+                'size_policy': (QSizePolicy.Preferred, QSizePolicy.Fixed)
+            },
+            'checkable_widgets': {
+                'types': ['QCheckBox', 'QRadioButton'],
+                'config': {
+                    'color': '#424242',
+                    'font_size': '11px',
+                    'font_weight': '500',
+                    'spacing': '8px'
+                }
+            },
+            'text_areas': {
+                'types': ['QTextEdit', 'QPlainTextEdit'],
+                'config': {**base_config, 'padding': '12px'},
+                'height': 80,
+                'size_policy': (QSizePolicy.Expanding, QSizePolicy.Expanding)
+            }
+        }
+        
+        # Aplicar configuración según tipo de widget
+        self._configure_widget_by_type(widget, widget_type, widget_configs)
+        
+    def _configure_widget_by_type(self, widget, widget_type, configs):
+        """Configurar widget según su tipo usando las configuraciones centralizadas"""
+        for config_name, config_data in configs.items():
+            if widget_type in config_data['types']:
+                # Aplicar CSS
+                css = self._build_css_from_config(widget_type, config_data['config'])
+                widget.setStyleSheet(css)
                 
-                QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus {
-                    border: 2px solid #2196f3;
-                    background-color: #ffffff;
-                    outline: none;
-                }
+                # Aplicar propiedades adicionales
+                if 'height' in config_data:
+                    widget.setMinimumHeight(config_data['height'])
+                    
+                if 'size_policy' in config_data:
+                    h_policy, v_policy = config_data['size_policy']
+                    widget.setSizePolicy(h_policy, v_policy)
                 
-                QLineEdit:hover, QSpinBox:hover, QDoubleSpinBox:hover {
-                    border: 2px solid #bbbbbb;
-                }
-            """)
-        elif widget_type == 'QComboBox':
-            widget.setStyleSheet("""
-                QComboBox {
-                    padding: 10px 12px;
-                    border: 2px solid #e0e0e0;
-                    border-radius: 8px;
-                    background-color: #fafafa;
-                    font-size: 11px;
-                    color: #333333;
-                }
-                
-                QComboBox:focus {
-                    border: 2px solid #2196f3;
-                    background-color: #ffffff;
-                }
-                
-                QComboBox:hover {
-                    border: 2px solid #bbbbbb;
-                }
-                
-                QComboBox::drop-down {
-                    border: none;
-                    width: 20px;
-                }
-                
-                QComboBox::down-arrow {
-                    image: none;
-                    border: none;
-                    width: 12px;
-                    height: 12px;
-                }
-            """)
+                return
+        
+        # Widget tipo no reconocido - aplicar estilo básico
+        widget.setStyleSheet("QWidget { font-size: 11px; color: #333333; }")
     
+    def _build_css_from_config(self, widget_type, config):
+        """Construir CSS desde configuración"""
+        css_parts = []
+        
+        # CSS base
+        base_css = self._config_to_css(config)
+        css_parts.append(f"{widget_type} {{ {base_css} }}")
+        
+        # Estados interactivos comunes
+        if widget_type in ['QLineEdit', 'QSpinBox', 'QDoubleSpinBox', 'QComboBox']:
+            css_parts.extend([
+                f"{widget_type}:focus {{ border: 2px solid #2196f3; background-color: #ffffff; outline: none; }}",
+                f"{widget_type}:hover {{ border: 2px solid #bbbbbb; }}"
+            ])
+            
+            if widget_type == 'QLineEdit':
+                css_parts.append(f"{widget_type}:read-only {{ background-color: #f5f5f5; color: #666666; }}")
+        
+        elif widget_type == 'QPushButton':
+            css_parts.extend([
+                f"{widget_type}:hover {{ background-color: #eeeeee; border: 2px solid #bdbdbd; color: #212121; }}",
+                f"{widget_type}:pressed {{ background-color: #e0e0e0; border: 2px solid #9e9e9e; }}",
+                f"{widget_type}:disabled {{ background-color: #fafafa; border: 2px solid #eeeeee; color: #bdbdbd; }}"
+            ])
+        
+        elif widget_type in ['QCheckBox', 'QRadioButton']:
+            css_parts.extend([
+                f"{widget_type}::indicator {{ width: 18px; height: 18px; }}",
+                f"{widget_type}::indicator:unchecked {{ border: 2px solid #e0e0e0; background-color: #fafafa; border-radius: 4px; }}",
+                f"{widget_type}::indicator:checked {{ border: 2px solid #2196f3; background-color: #2196f3; border-radius: 4px; }}"
+            ])
+        
+        # CSS extra si existe
+        if 'extra_css' in config:
+            css_parts.append(config['extra_css'])
+        
+        return '\n'.join(css_parts)
+    
+    def _config_to_css(self, config):
+        """Convertir configuración a CSS"""
+        css_rules = []
+        for key, value in config.items():
+            if key == 'extra_css':
+                continue
+            css_property = key.replace('_', '-')  # background_color -> background-color
+            css_rules.append(f"{css_property}: {value};")
+        return ' '.join(css_rules)
+    
+    def set_widget_validation_style(self, widget, validation_state):
+        """Aplicar estilo de validación manteniendo el estilo base"""
+        # Re-aplicar estilo base
+        self._apply_field_style(widget)
+        
+        # Validaciones específicas usando !important para override
+        validation_overrides = {
+            'valid': "border-color: #4caf50 !important; background-color: #e8f5e8 !important;",
+            'warning': "border-color: #ff9800 !important; background-color: #fff3e0 !important;",
+            'error': "border-color: #f44336 !important; background-color: #ffebee !important;"
+        }
+        
+        if validation_state in validation_overrides:
+            widget_id = f"validation_{id(widget)}"
+            widget.setObjectName(widget_id)
+            
+            widget_type = widget.__class__.__name__
+            current_style = widget.styleSheet()
+            validation_css = f"\n{widget_type}#{widget_id} {{ {validation_overrides[validation_state]} }}"
+            
+            widget.setStyleSheet(current_style + validation_css)
+    
+    def reset_widget_style(self, widget):
+        """Resetear widget al estilo base de la card"""
+        widget.setObjectName("")  # Limpiar ID de validación
+        self._apply_field_style(widget)
+    
+            
+    def customize_widget(self, widget, **styles):
+        """Personalizar estilos específicos de cualquier widget"""
+        
+        # Aplicar estilo base
+        self._apply_field_style(widget)
+        
+        # Crear stylesheet personalizado
+        widget_type = widget.__class__.__name__
+        widget_id = f"custom_{id(widget)}"
+        widget.setObjectName(widget_id)
+        
+        custom_styles = []
+        for property_name, value in styles.items():
+            css_property = property_name.replace('_', '-')  # background_color -> background-color
+            custom_styles.append(f"{css_property}: {value};")
+        
+        if custom_styles:
+            custom_css = f"{widget_type}#{widget_id} {{ {''.join(custom_styles)} }}"
+            current_style = widget.styleSheet()
+            widget.setStyleSheet(current_style + "\n" + custom_css)
+        
     def get_data(self):
         """Obtener todos los datos de la card (debe ser implementado por subclases)"""
         raise NotImplementedError("Subclases deben implementar get_data()")
@@ -411,12 +576,13 @@ class UnitsParamsCard(DataCard):
                     
 class ModalCard(DataCard):
     """Card de análisis modal"""
-    #units_changed = pyqtSignal(dict) # Señal cuando cambian las unidades
+    modal_threshold_changed = pyqtSignal(float)  # Cuando cambia el umbral mínimo
+    show_modal_table_requested = pyqtSignal()    # Cuando se solicita ver la tabla modal
     
     def __init__(self, parent=None):
         super().__init__("ANÁLISIS MODAL", "🏗️", parent)
         self._create_fields()
-        #self.connect_signals()
+        self.connect_signals()
         
     def _create_fields(self):
         from core.config.units_config import get_unit_options, get_default_unit
@@ -449,10 +615,85 @@ class ModalCard(DataCard):
         self.b_modal = QPushButton("Ver Data")
         self.add_field(3, 2, "", self.b_modal, "b_modal", "Botón de ver data")
         
-    # def connect_signals(self):
-    #     """Conectar señales"""
-    #     for categoria, combo in self.combos.items():
-    #         combo.currentTextChanged.connect(self._on_unit_changed)
+    def connect_signals(self):
+        """Conectar señales"""
+        # Cuando cambia el umbral mínimo de masa participativa
+        self.le_modal.textChanged.connect(self._on_modal_threshold_changed)
+        
+        # Cuando se presiona el botón de ver tabla
+        self.b_modal.clicked.connect(self._on_show_modal_table)
+        
+    def _on_modal_threshold_changed(self, text):
+        """Manejar cambio en umbral de masa participativa"""
+        try:
+            threshold = float(text)
+            if 70.0 <= threshold <= 100.0:
+                self.modal_threshold_changed.emit(threshold)
+                self.set_widget_validation_style(self.le_modal, 'default')
+            else:
+                self.set_widget_validation_style(self.le_modal, 'warning')
+        except ValueError:
+            self.set_widget_validation_style(self.le_modal, 'warning')
+            
+    def _on_show_modal_table(self):
+        """Manejar solicitud de mostrar tabla modal"""
+        self.show_modal_table_requested.emit()
+        
+    def update_modal_results(self, results):
+        """✅ Método público para actualizar resultados desde la app principal"""
+        if results is None:
+            self._clear_results()
+            return
+        
+        self._update_modal_fields(results)
+    
+    def _update_modal_fields(self, results):
+        """Actualizar campos modales y aplicar validación visual consolidada"""
+        try:
+            # 1. Actualizar períodos fundamentales
+            self.le_tx.setText(f"{results['Tx']:.4f}" if results['Tx'] else "N/A")
+            self.le_ty.setText(f"{results['Ty']:.4f}" if results['Ty'] else "N/A")
+                
+            # 2. Actualizar masa participativa
+            self.le_participacion_x.setText(f"{results['total_mass_x']:.1f}")
+            self.le_participacion_y.setText(f"{results['total_mass_y']:.1f}")
+            
+            # 3. Validación visual consolidada
+            min_mass = self._get_min_mass_participation()
+            cumple_x = results['total_mass_x'] >= min_mass
+            cumple_y = results['total_mass_y'] >= min_mass
+            
+            # Aplicar colores directamente
+            self.set_widget_validation_style(self.le_participacion_x, 'valid' if cumple_x else 'error')
+            self.set_widget_validation_style(self.le_participacion_y, 'valid' if cumple_y else 'error')
+            
+            
+            print(f"✅ Campos actualizados - Tx: {results['Tx']:.4f}s, Ty: {results['Ty']:.4f}s")
+            
+        except Exception as e:
+            print(f"❌ Error actualizando campos: {e}")
+            
+    def _clear_results(self):
+        """Limpiar resultados cuando no hay datos"""
+        self.le_tx.setText("N/A")
+        self.le_ty.setText("N/A")
+        self.le_participacion_x.setText("N/A")
+        self.le_participacion_y.setText("N/A")
+        
+        # Quitar colores de validación
+        self.le_participacion_x.setStyleSheet("")
+        self.le_participacion_y.setStyleSheet("")
+            
+    def _get_min_mass_participation(self) -> float:
+        """Obtener porcentaje mínimo de masa participativa validado"""
+        try:
+            min_percent = float(self.le_modal.text())
+            if 70.0 <= min_percent <= 100.0:
+                return min_percent
+            else:
+                return 90.0
+        except ValueError:
+            return 90.0
             
 class CombinationsCard(DataCard):
     """Card de combinaciones de Carga"""
@@ -575,7 +816,7 @@ class DisplacementCard(DataCard):
       
         # Boton
         self.b_desplazamiento = QPushButton("Calcular Desplazamientos")
-        self.add_field(1, 0, "", self.b_desplazamiento, "b_desplazamiento", "")
+        self.add_field(1, 2, "", self.b_desplazamiento, "b_desplazamiento", "")
    
     # def connect_signals(self):
     #     """Conectar señales"""
@@ -584,12 +825,13 @@ class DisplacementCard(DataCard):
     
 class DriftCard(DataCard):
     """Card de Derivas"""
-    #units_changed = pyqtSignal(dict) # Señal cuando cambian las unidades
+    drift_threshold_changed = pyqtSignal(float) # Cuando cambia el umbral máximo
+    show_drift_graph_requested = pyqtSignal()    # Cuando se solicita ver la gráfica
     
     def __init__(self, parent=None):
         super().__init__("Derivas", "🏗️", parent)
         self._create_fields()
-        #self.connect_signals()
+        self.connect_signals()
         
     def _create_fields(self):
         """Crear campos específicos"""
@@ -614,27 +856,102 @@ class DriftCard(DataCard):
         self.le_piso_deriva_x.setReadOnly(True)
         self.le_piso_deriva_y = QLineEdit()
         self.le_piso_deriva_y.setReadOnly(True)
-        self.add_field(1, 0, "Piso X:", self.le_piso_deriva_x, "le_piso_deriva_x", "Piso de la deriva máx X")
-        self.add_field(1, 2, "Piso Y:", self.le_piso_deriva_y, "le_piso_deriva_y", "Piso de la deriva máx Y")
+        self.add_field(2, 0, "Piso X:", self.le_piso_deriva_x, "le_piso_deriva_x", "Piso de la deriva máx X")
+        self.add_field(2, 2, "Piso Y:", self.le_piso_deriva_y, "le_piso_deriva_y", "Piso de la deriva máx Y")
         
         # Boton
         self.b_derivas = QPushButton("Calcular Derivas")
-        self.add_field(3, 0, "", self.b_derivas, "b_derivas", "")
+        self.add_field(3, 2, "", self.b_derivas, "b_derivas", "")
    
-    # def connect_signals(self):
-    #     """Conectar señales"""
-    #     for categoria, combo in self.combos.items():
-    #         combo.currentTextChanged.connect(self._on_unit_changed)
+    def connect_signals(self):
+        """Conectar señales"""
+        # Cuando cambia la deriva minima
+        self.le_max_drift.textChanged.connect(self._on_drift_threshold_changed)
+        
+        # Cuando se presiona el botón de ver tabla
+        self.b_derivas.clicked.connect(self._on_show_drift_graph)
+        
+    def _on_show_drift_graph(self):
+        """Manejar solicitud de mostrar gráfico de derivas"""
+        self.show_drift_graph_requested.emit()
+        
+    def _on_drift_threshold_changed(self, text):
+        """Manejar cambio en umbral de masa participativa"""
+        try:
+            threshold = float(text)
+            if 0.001 <= threshold <= 0.02:
+                self.drift_threshold_changed.emit(threshold)
+                self.set_widget_validation_style(self.le_max_drift, 'default')
+            else:
+                self.set_widget_validation_style(self.le_max_drift, 'warning')
+        except ValueError:
+            self.set_widget_validation_style(self.le_max_drift, 'warning')
+            
+    def _get_max_drift_limit(self) -> float:
+        """Obtener límite máximo de deriva validado"""
+        try:
+            limit = float(self.le_max_drift.text())
+            if 0.001 <= limit <= 0.020:
+                return limit
+            else:
+                return 0.007  # Valor por defecto
+        except ValueError:
+            return 0.007
+    
+    def _update_drift_results(self,limit,results):
+        """Actualizar campos de resultados de derivas"""
+        try:           
+            max_x = results.get('max_drift_x', 0.0)
+            max_y = results.get('max_drift_y', 0.0)
+            story_x = results.get('story_max_x', 'N/A')
+            story_y = results.get('story_max_y', 'N/A')
+            
+            # Actualizar campos
+            self.le_deriva_max_x.setText(f"{max_x:.4f}")
+            self.le_deriva_max_y.setText(f"{max_y:.4f}")
+            self.le_piso_deriva_x.setText(str(story_x))
+            self.le_piso_deriva_y.setText(str(story_y))
+            
+            complies_x = max_x <= limit
+            complies_y = max_y <= limit
+            
+            self._drift_validation(complies_x,complies_y)
+        
+        except Exception as e:
+            print(f"Error actualizando resultados de derivas: {e}")
+        
+    def _drift_validation(self,complies_x, complies_y):
+        """Validar deriva máxima y aplicar colores"""
+        try:
+
+            # Validación dirección X
+            self.set_widget_validation_style(self.le_deriva_max_x, 'valid' if complies_x else 'error')
+            self.set_widget_validation_style(self.le_piso_deriva_x, 'valid' if complies_x else 'error')
+            
+            # Validación dirección Y
+            self.set_widget_validation_style(self.le_deriva_max_y, 'valid' if complies_y else 'error')
+            self.set_widget_validation_style(self.le_piso_deriva_y, 'valid' if complies_y else 'error')
+                     
+        except ValueError:
+            # Validación dirección X
+            self.set_widget_validation_style(self.le_deriva_max_x, 'default')
+            self.set_widget_validation_style(self.le_piso_deriva_x, 'default')
+            
+            # Validación dirección Y
+            self.set_widget_validation_style(self.le_deriva_max_y, 'default')
+            self.set_widget_validation_style(self.le_piso_deriva_y, 'default')
     
     
 class TorsionCard(DataCard):
     """Card de Irregularidad por Torsión"""
-    #units_changed = pyqtSignal(dict) # Señal cuando cambian las unidades
+    torsion_threshold_changed = pyqtSignal(float) # Señal de cambio de límite
+    show_torsion_table_requested = pyqtSignal() # Solicitud de tabla
+    torsion_combo_changed = pyqtSignal() # cambio de combo
     
     def __init__(self, parent=None):
         super().__init__("Irregularidad Torsional", "🏗️", parent)
         self._create_fields()
-        #self.connect_signals()
+        self.connect_signals()
         
     def _create_fields(self):
         """Crear campos específicos"""
@@ -668,7 +985,293 @@ class TorsionCard(DataCard):
         
         # Boton
         self.b_torsion_table = QPushButton("Ver Tabla")
-        self.add_field(4, 0, "", self.b_torsion_table, "b_torsion_table", "")
+        self.add_field(4, 2, "", self.b_torsion_table, "b_torsion_table", "")
+   
+    def connect_signals(self):
+        """Conectar señales"""
+        # Cuando cambia ratio máximo
+        self.le_torsion_limit.textChanged.connect(self._on_torsion_limit_changed)
+        
+        # Cuando se presiona el botón de ver tabla
+        self.b_torsion_table.clicked.connect(self._on_show_torsion_table)
+        
+        # Cuando se cambia de combo
+        self.cb_torsion_combo.currentTextChanged.connect(self._on_change_combo)
+        
+    def _on_show_torsion_table(self):
+        """Manejar solicitud de mostrar tabla"""
+        self.show_torsion_table_requested.emit()
+        
+    def _on_change_combo(self):
+        """Manejar cambio de combo"""
+        self.torsion_combo_changed.emit()
+            
+    def _on_torsion_limit_changed(self, text):
+        """Manejar cambio en umbral de masa participativa"""
+        try:
+            threshold = float(text)
+            if 1.0 <= threshold <= 2.0:
+                self.torsion_threshold_changed.emit(threshold)
+                self.set_widget_validation_style(self.le_max_drift, 'default')
+            else:
+                self.set_widget_validation_style(self.le_max_drift, 'warning')
+        except ValueError:
+            self.set_widget_validation_style(self.le_max_drift, 'warning')
+            
+    def _get_torsion_limit(self) -> float:
+        """Obtener límite de torsión validado"""
+        try:
+            limit = float(self.le_torsion_limit.text())
+            if 1.0 <= limit <= 2.0:
+                return limit
+            else:
+                return 1.3
+        except ValueError:
+            return None
+        
+    def _get_torsion_combo(self) -> str:
+        """Obtener límite de torsión validado"""
+        try:
+            return self.cb_torsion_combo.currentText().lower()
+        except ValueError:
+            return None
+        
+    def _validate_torsion(self, status_x: str, status_y: str):
+        """Aplicar validación automática con colores"""
+        # Validar dirección X
+        if status_x == 'IRREGULAR':
+            self.set_widget_validation_style(self.le_relacion_x, 'error')
+            self.set_widget_validation_style(self.le_irregularidad_x, 'error')
+        else:
+            self.set_widget_validation_style(self.le_relacion_x, 'valid')
+            self.set_widget_validation_style(self.le_irregularidad_x, 'valid')
+        
+        # Validar dirección Y
+        if status_y == 'IRREGULAR':
+            self.set_widget_validation_style(self.le_relacion_y, 'error')
+            self.set_widget_validation_style(self.le_irregularidad_y, 'error')
+        else:
+            self.set_widget_validation_style(self.le_relacion_y, 'valid')
+            self.set_widget_validation_style(self.le_irregularidad_y, 'valid')
+    
+    def _update_torsion_results(self,torsion_data):
+        """Actualizar campos de resultados de torsion"""
+        try:
+            torsion_limit = self._get_torsion_limit()
+            ratio_x = torsion_data.get('ratio_x', 0.0)
+            ratio_y = torsion_data.get('ratio_y', 0.0)
+            
+            # Verificar irregularidad
+            irregular_x = ratio_x > torsion_limit
+            irregular_y = ratio_y > torsion_limit
+            
+            status_x = "IRREGULAR" if (irregular_x) else "REGULAR"
+            status_y = "IRREGULAR" if (irregular_y) else "REGULAR"
+            
+            # Actualizar campos_units_widgets
+            self.le_irregularidad_x.setText(status_x)
+            self.le_relacion_x.setText(f"{ratio_x:.3f}")
+            
+            self.le_irregularidad_y.setText(status_y)
+            self.le_relacion_y.setText(f"{ratio_y:.3f}")
+            
+            # Validación con colores
+            self._validate_torsion(status_x,status_y)
+            
+        except Exception as e:
+            print(f"Error actualizando resultados de derivas: {e}")
+    
+class PortadaCard(DataCard):
+    """Card para portada"""
+    #units_changed = pyqtSignal(dict) # Señal cuando cambian las unidades
+    
+    def __init__(self, parent=None):
+        super().__init__("Sección de Portada", "📒", parent)
+        self._create_fields()
+        #self.connect_signals()
+        
+    def _create_fields(self):
+        """Crear campos específicos"""
+        # Configurar expansión de columnas
+        self.content_layout.setColumnStretch(0, 1)
+        self.content_layout.setColumnStretch(1, 2)
+        self.content_layout.setColumnStretch(2, 2)
+        self.content_layout.setColumnStretch(3, 2)
+        
+        # Imagen de Portada
+        self.b_portada = QPushButton("Cargar Imagen")
+        self.lb_portada_status = QLabel("Imagen por defecto")
+        self.customize_widget(self.lb_portada_status,color='gray')
+        self.add_field(0, 0, "Imagen de Portada:", self.b_portada, "b_portada", "Imagen de Portada")
+        self.add_widget(0,2,self.lb_portada_status,'lb_portada_status','')
+        
+   
+    # def connect_signals(self):
+    #     """Conectar señales"""
+    #     for categoria, combo in self.combos.items():
+    #         combo.currentTextChanged.connect(self._on_unit_changed)
+    
+
+class DescripcionEstructuraCard(DataCard):
+    """Card de Descripción de la Estructura"""
+    #units_changed = pyqtSignal(dict) # Señal cuando cambian las unidades
+    
+    def __init__(self, parent=None):
+        super().__init__("Descripción de la Estructura", "📒", parent)
+        self._create_fields()
+        #self.connect_signals()
+        
+    def _create_fields(self):
+        """Crear campos específicos"""
+        # Configurar expansión de columnas
+        self.content_layout.setColumnStretch(0, 1)
+        self.content_layout.setColumnStretch(1, 2)
+        self.content_layout.setColumnStretch(2, 2)
+        self.content_layout.setColumnStretch(3, 2)
+        
+        # Checkbox
+        self.cb_desc_estructura = QCheckBox("")
+        self.cb_desc_estructura.setChecked(False)
+        self.cb_desc_estructura.setEnabled(False)
+        self.add_field(0, 0, "Incluir en la memoria:", self.cb_desc_estructura, "cb_desc_estructura", "")
+        
+        # Descripción
+        self.b_descripcion = QPushButton("Agregar Texto")
+        self.lb_descripcion = QLabel("Sin texto")
+        self.customize_widget(self.lb_descripcion,color='gray')
+        self.add_field(1, 0, "Contenido de la sección:", self.b_descripcion, "b_descripcion", "Contenido de la sección")
+        self.add_widget(1,2,self.lb_descripcion,'lb_descripcion','')
+        
+   
+    # def connect_signals(self):
+    #     """Conectar señales"""
+    #     for categoria, combo in self.combos.items():
+    #         combo.currentTextChanged.connect(self._on_unit_changed)
+    
+    
+class CriteriosModelamientoCard(DataCard):
+    """Card de Descripción de la Estructura"""
+    #units_changed = pyqtSignal(dict) # Señal cuando cambian las unidades
+    
+    def __init__(self, parent=None):
+        super().__init__("Criterios de Modelamiento", "📒", parent)
+        self._create_fields()
+        #self.connect_signals()
+        
+    def _create_fields(self):
+        """Crear campos específicos"""
+        # Configurar expansión de columnas
+        self.content_layout.setColumnStretch(0, 1)
+        self.content_layout.setColumnStretch(1, 2)
+        self.content_layout.setColumnStretch(2, 2)
+        self.content_layout.setColumnStretch(3, 2)
+        
+        # Checkbox
+        self.cb_criterios = QCheckBox("")
+        self.cb_criterios.setChecked(False)
+        self.cb_criterios.setEnabled(False)
+        self.add_field(0, 0, "Incluir en la memoria:", self.cb_criterios, "cb_criterios", "")
+        
+        # Descripción
+        self.b_modelamiento = QPushButton("Agregar Texto")
+        self.lb_modelamiento = QLabel("Sin texto")
+        self.customize_widget(self.lb_modelamiento,color='gray')
+        self.add_field(1, 0, "Contenido de la sección:", self.b_modelamiento, "b_modelamiento", "Contenido de la sección")
+        self.add_widget(1,2,self.lb_modelamiento,'lb_modelamiento','')
+        
+        # Captura 3D
+        self.b_3D = QPushButton("Cargar Imagen")
+        self.lb_3d_status = QLabel("Sin imagen")
+        self.customize_widget(self.lb_3d_status,color='gray')
+        self.add_field(2, 0, "Captura 3D:", self.b_3D, "b_3D", "Captura 3D")
+        self.add_widget(2,2,self.lb_3d_status,'lb_3d_status','')
+        
+        # Planta Típica
+        self.b_planta = QPushButton("Cargar Imagen")
+        self.lb_planta_status = QLabel("Sin imagen")
+        self.customize_widget(self.lb_planta_status,color='gray')
+        self.add_field(3, 0, "Planta Típica:", self.b_planta, "b_planta", "Planta Típica")
+        self.add_widget(3,2,self.lb_planta_status,'lb_planta_status','')
+        
+   
+    # def connect_signals(self):
+    #     """Conectar señales"""
+    #     for categoria, combo in self.combos.items():
+    #         combo.currentTextChanged.connect(self._on_unit_changed)
+    
+class DescripcionCargasCard(DataCard):
+    """Card de Descripción de la Estructura"""
+    #units_changed = pyqtSignal(dict) # Señal cuando cambian las unidades
+    
+    def __init__(self, parent=None):
+        super().__init__("Descripción de Cargas", "📒", parent)
+        self._create_fields()
+        #self.connect_signals()
+        
+    def _create_fields(self):
+        """Crear campos específicos"""
+        # Configurar expansión de columnas
+        self.content_layout.setColumnStretch(0, 1)
+        self.content_layout.setColumnStretch(1, 2)
+        self.content_layout.setColumnStretch(2, 2)
+        self.content_layout.setColumnStretch(3, 2)
+        
+        # Checkbox
+        self.cb_cargas = QCheckBox("")
+        self.cb_cargas.setChecked(False)
+        self.cb_cargas.setEnabled(False)
+        self.add_field(0, 0, "Incluir en la memoria:", self.cb_cargas, "cb_cargas", "")
+        
+        # Descripción
+        self.b_cargas = QPushButton("Agregar Texto")
+        self.lb_cargas = QLabel("Sin texto")
+        self.customize_widget(self.lb_cargas,color='gray')
+        self.add_field(1, 0, "Contenido de la sección:", self.b_cargas, "b_cargas", "Contenido de la sección")
+        self.add_widget(1,2,self.lb_cargas,'lb_cargas','')
+        
+   
+    # def connect_signals(self):
+    #     """Conectar señales"""
+    #     for categoria, combo in self.combos.items():
+    #         combo.currentTextChanged.connect(self._on_unit_changed)
+    
+    
+class ModosPrincipalesCard(DataCard):
+    """Card de Descripción de la Estructura"""
+    #units_changed = pyqtSignal(dict) # Señal cuando cambian las unidades
+    
+    def __init__(self, parent=None):
+        super().__init__("Modos Principales del Análisis Modal", "📒", parent)
+        self._create_fields()
+        #self.connect_signals()
+        
+    def _create_fields(self):
+        """Crear campos específicos"""
+        # Configurar expansión de columnas
+        self.content_layout.setColumnStretch(0, 1)
+        self.content_layout.setColumnStretch(1, 2)
+        self.content_layout.setColumnStretch(2, 2)
+        self.content_layout.setColumnStretch(3, 2)
+        
+        # Checkbox
+        self.cb_modos = QCheckBox("")
+        self.cb_modos.setChecked(False)
+        self.cb_modos.setEnabled(False)
+        self.add_field(0, 0, "Incluir en la memoria:", self.cb_modos, "cb_modos", "")
+        
+        # Modos principales
+        self.b_defX = QPushButton("Cargar Imagen")
+        self.lb_defx_status = QLabel("Sin Imagen")
+        self.customize_widget(self.lb_defx_status,color='gray')
+        self.add_field(1, 0, "Modo Principal en X:", self.b_defX, "b_defX", "Modo Principal en X")
+        self.add_widget(1,2,self.lb_defx_status,'lb_defx_status','')
+        
+        self.b_defY = QPushButton("Cargar Imagen")
+        self.lb_defy_status = QLabel("Sin Imagen")
+        self.customize_widget(self.lb_defy_status,color='gray')
+        self.add_field(2, 0, "Modo Principal en Y:", self.b_defY, "b_defY", "Modo Principal en Y")
+        self.add_widget(2,2,self.lb_defy_status,'lb_defY_status','')
+        
    
     # def connect_signals(self):
     #     """Conectar señales"""

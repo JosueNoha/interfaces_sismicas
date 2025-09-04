@@ -42,10 +42,10 @@ class AppBase(QMainWindow):
         # Actualizar widgets al inicio
         self.refresh_all_combinations(silent=True)
         self.process_modal_data()
+        self.calculate_drifts()
+        self.calculate_torsion()
         self._update_shear_displays()
         self._update_displacement_results()
-        self._update_drift_results()
-        self._update_torsion_results()
         
         # Conectar señales
         self._connect_common_signals()
@@ -58,22 +58,23 @@ class AppBase(QMainWindow):
 
     def _connect_common_signals(self):
         """Conectar señales comunes"""
+        # Análisis Modal
+        self._connect_modal_card_signals()
+        
+        # Derivas
+        self._connect_drift_card_signals()
+        
+        # Irregularidad por torsión
+        self._connect_torsion_card_signals()
+        
         # Botones de análisis sísmico
-        self.ui.b_modal.clicked.connect(self.show_modal_table) 
         self.ui.b_desplazamiento.clicked.connect(self._show_displacements_plot)
-        self.ui.b_derivas.clicked.connect(self._show_drifts_plot)
         self.ui.b_actualizar.clicked.connect(self.update_all_data)
         
         # Gráfico de cortantes
         self.ui.b_view_dynamic.clicked.connect(lambda: self._show_shear_plot('dynamic'))
         self.ui.b_view_static.clicked.connect(lambda: self._show_shear_plot('static'))
-        
-        # Validacion de deriva maxima
-        self.ui.le_max_drift.textChanged.connect(self._validate_max_drift)
 
-        # Botón irregularidad torsional
-        self.ui.b_torsion_table.clicked.connect(self.show_torsion_table)
-        self.ui.le_torsion_limit.textChanged.connect(self._update_torsion_results)
         
         # AGREGAR: Actualización automática de cortantes cuando cambien las combinaciones
         self.ui.cb_comb_dynamic_x.currentTextChanged.connect(self._on_combination_changed)
@@ -83,9 +84,6 @@ class AppBase(QMainWindow):
             
         # Actualiza Factores de escala
         self.ui.le_scale_factor.textChanged.connect(self._on_scale_factor_changed)
-        
-        # Validación de masa participativa mínima
-        self.ui.le_modal.textChanged.connect(self.process_modal_data)
         
         # Botones de imágenes
         self.ui.b_portada.clicked.connect(lambda: self.load_image('portada'))
@@ -471,7 +469,7 @@ class AppBase(QMainWindow):
             if results:
                 self.modal_data = modal_data
                 self.modal_results = results
-                self._update_modal_fields(results)
+                self.ui.modal_card.update_modal_results(results)
         else:
             self.show_warning("⚠️ No hay datos modales disponibles.")
         
@@ -518,58 +516,24 @@ class AppBase(QMainWindow):
             filtered_df.insert(0, 'Mode', range(1, len(filtered_df) + 1))
     
         return filtered_df
-              
-    def _update_modal_fields(self, results):
-        """Actualizar campos modales y aplicar validación visual consolidada"""
-        if self.modal_data is None:
-            self.process_modal_data()
-        try:
-            # 1. Actualizar períodos fundamentales
-            if hasattr(self.ui, 'le_tx'):
-                self.ui.le_tx.setText(f"{results['Tx']:.4f}" if results['Tx'] else "N/A")
-            if hasattr(self.ui, 'le_ty'):
-                self.ui.le_ty.setText(f"{results['Ty']:.4f}" if results['Ty'] else "N/A")
-                
+    
+    def _connect_modal_card_signals(self):
+        '''Conectar señales de la ModalCard'''
+        if hasattr(self.ui, 'modal_card'):
+            # Conectar cambio de umbral
+            self.ui.modal_card.modal_threshold_changed.connect(self._on_modal_threshold_changed)
             
-            # 2. Actualizar masa participativa
-            if hasattr(self.ui, 'le_participacion_x'):
-                self.ui.le_participacion_x.setText(f"{results['total_mass_x']:.1f}")
-            if hasattr(self.ui, 'le_participacion_y'):
-                self.ui.le_participacion_y.setText(f"{results['total_mass_y']:.1f}")
+            # Conectar solicitud de mostrar tabla
+            self.ui.modal_card.show_modal_table_requested.connect(self.show_modal_table)
             
-            # 3. Validación visual consolidada
-            min_mass = self._get_min_mass_participation()
-            cumple_x = results['total_mass_x'] >= min_mass
-            cumple_y = results['total_mass_y'] >= min_mass
-            
-            # Aplicar colores directamente
-            color_ok = "QLineEdit { background-color: #d4edda; }"
-            color_warning = "QLineEdit { background-color: #fff3cd; }"
-            
-            if hasattr(self.ui, 'le_participacion_x'):
-                self.ui.le_participacion_x.setStyleSheet(color_ok if cumple_x else color_warning)
-            if hasattr(self.ui, 'le_participacion_y'):
-                self.ui.le_participacion_y.setStyleSheet(color_ok if cumple_y else color_warning)
-            
-            print(f"✅ Campos actualizados - Tx: {results['Tx']:.4f}s, Ty: {results['Ty']:.4f}s")
-            
-        except Exception as e:
-            print(f"❌ Error actualizando campos: {e}")
-
-    def _get_min_mass_participation(self) -> float:
-        """Obtener porcentaje mínimo de masa participativa validado"""
-        try:
-            min_percent = float(self.ui.le_modal.text())
-            if 70.0 <= min_percent <= 100.0:
-                self.ui.le_modal.setStyleSheet("")
-                return min_percent
-            else:
-                self.ui.le_modal.setStyleSheet("QLineEdit { border: 2px solid orange; }")
-                return 90.0
-        except ValueError:
-            self.ui.le_modal.setStyleSheet("QLineEdit { border: 2px solid red; }")
-            return 90.0
+    def _on_modal_threshold_changed(self, threshold):
+        '''Manejar cambio en umbral de masa participativa'''
+        print(f"🔄 Nuevo umbral de masa participativa: {threshold}%")
         
+        # Si ya tienes datos modales, re-procesarlos con el nuevo umbral
+        if hasattr(self, 'modal_data') and self.modal_data is not None:
+            self.process_modal_data()
+            
         
     # Fuerzas Cortantes
     def calculate_shear_forces(self):
@@ -904,107 +868,49 @@ class AppBase(QMainWindow):
             self.sismo.use_combo = use_combo
             
             # Obtener límite de deriva
-            max_drift_limit = self._get_max_drift_limit()
+            max_drift_limit = self.ui.drift_card._get_max_drift_limit()
             self.sismo.max_drift = max_drift_limit
             
             success = self.sismo.calculate_drifts(self.SapModel, use_combo)
             
             if success:
                 # Actualizar campos de resultados
-                self._update_drift_results()
+                self._update_drift_results(max_drift_limit)
             else:
                 self.show_error("Error calculando derivas")
                 
         except Exception as e:
             self.show_error(f"Error: {e}")
         
+    def _connect_drift_card_signals(self):
+        '''Conectar señales de la ModalCard'''
+        if hasattr(self.ui, 'drift_card'):
+            # Conectar cambio de umbral
+            self.ui.drift_card.drift_threshold_changed.connect(self._on_drift_threshold_changed)
             
-    def _update_drift_results(self):
+            # Conectar solicitud de mostrar tabla
+            self.ui.drift_card.show_drift_graph_requested.connect(self._show_drifts_plot)
+            
+    def _on_drift_threshold_changed(self, threshold):
+        '''Manejar cambio en deriva mínima'''
+        print(f"🔄 Deriva mínima nueva: {threshold}%")
+        self.sismo
+        self._update_drift_results(threshold)
+            
+    def _update_drift_results(self,limit):
         """Actualizar campos de resultados de derivas"""
         try:
             if not hasattr(self.sismo,'drift_results'):
                 self.calculate_drifts()
 
             results = self.sismo.drift_results
+            limit = self.ui.drift_card._get_max_drift_limit()
+            self.max_drift = limit
+            self.ui.drift_card._update_drift_results(limit,results)
             
-            max_x = results.get('max_drift_x', 0.0)
-            max_y = results.get('max_drift_y', 0.0)
-            story_x = results.get('story_max_x', 'N/A')
-            story_y = results.get('story_max_y', 'N/A')
-            
-            # Actualizar campos
-            self.ui.le_deriva_max_x.setText(f"{max_x:.4f}")
-            self.ui.le_deriva_max_y.setText(f"{max_y:.4f}")
-            self.ui.le_piso_deriva_x.setText(str(story_x))
-            self.ui.le_piso_deriva_y.setText(str(story_y))
-            
-            
-            self._validate_max_drift()
-                
         except Exception as e:
             print(f"Error actualizando resultados de derivas: {e}")
             
-            
-    def _get_max_drift_limit(self) -> float:
-        """Obtener límite máximo de deriva validado"""
-        try:
-            limit = float(self.ui.le_max_drift.text())
-            if 0.001 <= limit <= 0.020:
-                self.ui.le_max_drift.setStyleSheet("")
-                return limit
-            else:
-                self.ui.le_max_drift.setStyleSheet("QLineEdit { border: 2px solid orange; }")
-                return 0.007  # Valor por defecto
-        except ValueError:
-            self.ui.le_max_drift.setStyleSheet("QLineEdit { border: 2px solid red; }")
-            return 0.007
-        
-    def _validate_max_drift(self):
-        try:
-            if not hasattr(self.sismo,'drift_results'):
-                self.calculate_drifts()
-                
-            limit = getattr(self.sismo,'max_drift', 0.007)
-            results = self.sismo.drift_results
-            max_x = results.get('max_drift_x', 0.0)
-            max_y = results.get('max_drift_y', 0.0)
-            
-            complies_x = max_x <= limit
-            complies_y = max_y <= limit
-            
-            self._drift_validation(complies_x,complies_y)
-        except:
-            pass #excepcion silenciosa
-        
-    def _drift_validation(self,complies_x, complies_y):
-        """Validar deriva máxima y aplicar colores"""
-        try:
-            # Aplicar colores directamente
-            color_ok = "QLineEdit { background-color: #ccffcc; }"
-            color_error = "QLineEdit { background-color: #ffcccc; font-weight: bold; }"
-            
-            # Validación dirección X
-            x_style = color_ok if complies_x else color_error
-            self.ui.le_deriva_max_x.setStyleSheet(x_style)
-            if hasattr(self.ui, 'le_piso_deriva_x'):
-                self.ui.le_piso_deriva_x.setStyleSheet(x_style)
-            
-            # Validación dirección Y
-            y_style = color_ok if complies_y else color_error
-            self.ui.le_deriva_max_y.setStyleSheet(y_style)
-            if hasattr(self.ui, 'le_piso_deriva_y'):
-                self.ui.le_piso_deriva_y.setStyleSheet(y_style)
-                     
-        except ValueError:
-            # Si el valor de deriva máxima no es válido, limpiar estilos
-            default_style = ""
-            for field in [self.ui.le_deriva_max_x, self.ui.le_deriva_max_y]:
-                field.setStyleSheet(default_style)
-            if hasattr(self.ui, 'le_piso_deriva_x'):
-                self.ui.le_piso_deriva_x.setStyleSheet(default_style)
-            if hasattr(self.ui, 'le_piso_deriva_y'):
-                self.ui.le_piso_deriva_y.setStyleSheet(default_style)
-
 
     def _show_drifts_plot(self):
         """Mostrar gráfico de desplazamientos internamente"""
@@ -1054,7 +960,7 @@ class AppBase(QMainWindow):
             
         try:
             # Obtener tipo de combinación seleccionada
-            combo_type = self.ui.cb_torsion_combo.currentText().lower()
+            combo_type = self.ui.torsion_card._get_torsion_combo()
             combinations = self.get_selected_combinations()
             
             # Seleccionar combinaciones según el tipo
@@ -1078,6 +984,7 @@ class AppBase(QMainWindow):
             
             # Calcular irregularidad torsional
             success = self.sismo.calculate_torsional_irregularity(self.SapModel, cases_x, cases_y)
+            limit = self.ui.torsion_card._get_torsion_limit()
             
             if success:
                 self._update_torsion_results()
@@ -1088,38 +995,21 @@ class AppBase(QMainWindow):
         except Exception as e:
             self.show_error(f"Error: {e}")
             
-    def _get_torsion_limit(self) -> float:
-        """Obtener límite de torsión validado"""
-        try:
-            limit = float(self.ui.le_torsion_limit.text())
-            if 1.0 <= limit <= 2.0:
-                self.ui.le_torsion_limit.setStyleSheet("")
-                return limit
-            else:
-                self.ui.le_torsion_limit.setStyleSheet("QLineEdit { border: 2px solid orange; }")
-                self.show_warning("Límite debe estar entre 1.0 y 2.0")
-                return None
-        except ValueError:
-            self.ui.le_torsion_limit.setStyleSheet("QLineEdit { border: 2px solid red; }")
-            return None
-        
-    def _validate_torsion(self, status_x: str, status_y: str):
-        """Aplicar validación automática con colores"""
-        # Validar dirección X
-        if status_x == 'IRREGULAR':
-            self.ui.le_relacion_x.setStyleSheet("QLineEdit { background-color: #ffcccc; font-weight: bold; }")
-            self.ui.le_irregularidad_x.setStyleSheet("QLineEdit { background-color: #ffcccc; font-weight: bold; }")
-        else:
-            self.ui.le_relacion_x.setStyleSheet("QLineEdit { background-color: #ccffcc; }")
-            self.ui.le_irregularidad_x.setStyleSheet("QLineEdit { background-color: #ccffcc; }")
-        
-        # Validar dirección Y
-        if status_y == 'IRREGULAR':
-            self.ui.le_relacion_y.setStyleSheet("QLineEdit { background-color: #ffcccc; font-weight: bold; }")
-            self.ui.le_irregularidad_y.setStyleSheet("QLineEdit { background-color: #ffcccc; font-weight: bold; }")
-        else:
-            self.ui.le_relacion_y.setStyleSheet("QLineEdit { background-color: #ccffcc; }")
-            self.ui.le_irregularidad_y.setStyleSheet("QLineEdit { background-color: #ccffcc; }")
+    def _connect_torsion_card_signals(self):
+        '''Conectar señales de la ModalCard'''
+        if hasattr(self.ui, 'drift_card'):
+            # Conectar cambio de umbral
+            self.ui.torsion_card.torsion_threshold_changed.connect(self._update_torsion_results)
+            
+            # Conectar solicitud de mostrar tabla
+            self.ui.torsion_card.show_torsion_table_requested.connect(self.show_torsion_table)
+            
+            # Conectar combio de combo
+            self.ui.torsion_card.torsion_combo_changed.connect(self._update_torsion_loads)
+            
+    def _update_torsion_loads(self):
+        delattr(self.sismo,'torsion_results')
+        self._update_torsion_results()
             
     def _update_torsion_results(self):
         """Actualizar campos de resultados de torsion"""
@@ -1127,27 +1017,10 @@ class AppBase(QMainWindow):
             if not hasattr(self.sismo,'torsion_results'):
                 self.calculate_torsion()
 
+            limit = self.ui.torsion_card._get_torsion_limit()
             torsion_data = getattr(self.sismo, 'torsion_results', {})
-            torsion_limit = self._get_torsion_limit()
-            ratio_x = torsion_data.get('ratio_x', 0.0)
-            ratio_y = torsion_data.get('ratio_y', 0.0)
-            
-            # Verificar irregularidad
-            irregular_x = ratio_x > torsion_limit
-            irregular_y = ratio_y > torsion_limit
-            
-            status_x = "IRREGULAR" if (irregular_x) else "REGULAR"
-            status_y = "IRREGULAR" if (irregular_y) else "REGULAR"
-            
-            # Actualizar campos_units_widgets
-            self.ui.le_irregularidad_x.setText(status_x)
-            self.ui.le_relacion_x.setText(f"{ratio_x:.3f}")
-            
-            self.ui.le_irregularidad_y.setText(status_y)
-            self.ui.le_relacion_y.setText(f"{ratio_y:.3f}")
-            
-            # Validación con colores
-            self._validate_torsion(status_x,status_y)
+            self.ui.torsion_card._update_torsion_results(torsion_data)
+            self.sismo.torsion_limit = limit
             
         except Exception as e:
             print(f"Error actualizando resultados de derivas: {e}")
@@ -1295,7 +1168,6 @@ class AppBase(QMainWindow):
             
     
     # Trasversales
-    
     def update_sismo_data(self):
         """Actualizar datos del objeto sismo desde interfaz"""
         # Datos del proyecto
@@ -1334,7 +1206,7 @@ class AppBase(QMainWindow):
             if modal_data is not None and len(modal_data) > 0:
                 modal_results = process_modal_data(modal_data)
                 if modal_results:
-                    self._update_modal_fields(modal_results)
+                    #self._update_modal_fields(modal_results)
                     self.modal_table_data = modal_data
                     print("✅ Campos modales actualizados")
             
@@ -1345,7 +1217,6 @@ class AppBase(QMainWindow):
                 
         except Exception as e:
             print(f"Error en actualización automática: {e}")
-        
         
 
     def _force_generate_all_plots(self):

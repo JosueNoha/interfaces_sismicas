@@ -40,12 +40,8 @@ class AppBase(QMainWindow):
         self._init_default_values()
         
         # Actualizar widgets al inicio
-        self.refresh_all_combinations(silent=True)
-        self.process_modal_data()
-        self.calculate_drifts()
-        self.calculate_torsion()
-        self._update_shear_displays()
-        self._update_displacement_results()
+        self.refresh_all_combinations()
+        self.update_all_data()
         
         # Conectar señales
         self._connect_common_signals()
@@ -104,8 +100,7 @@ class AppBase(QMainWindow):
         self._connect_combination_signals()
         
         # Conectar widget de unidades
-        if hasattr(self.ui, 'units_widget'):
-            self.ui.units_widget.units_changed.connect(self._on_units_changed)
+        self.ui.units_widget.units_changed.connect(self._on_units_changed)
             
     def _init_default_values(self):
         """Inicializar valores por defecto"""
@@ -298,12 +293,11 @@ class AppBase(QMainWindow):
                 
               
     # Selección de combinaciones desde ETABS  
-    def refresh_all_combinations(self, silent=False):
+    def refresh_all_combinations(self):
         """Actualizar todas las combinaciones desde ETABS"""
-        if not self._connect_etabs():
-            if not silent:
-                self.show_warning("No se pudo conectar con ETABS")
-            return
+        if not self.SapModel:
+            if not self._connect_etabs():
+                return
         
         try:
             combo_widgets = [
@@ -316,22 +310,14 @@ class AppBase(QMainWindow):
             success = update_seismic_combinations(combo_widgets, self.SapModel)
             
             if success:
-                selections = self._auto_select_combinations_by_pattern()
-                if not silent:
-                    self.show_info(f"✅ Combinaciones actualizadas\n🎯 {selections} selecciones automáticas")
-                else:
-                    print("✅ Combinaciones actualizadas automáticamente")
+                self._auto_select_combinations_by_pattern()
             else:
                 self._set_disconnected_message()
-                if not silent:
-                    self.show_warning("⚠️ Actualización parcial")
                     
         except Exception as e:
             self._set_disconnected_message()
-            if not silent:
-                self.show_error(f"Error: {e}")
-            else:
-                print(f"Error en actualización automática: {e}")
+
+            print(f"Error en actualización automática: {e}")
                 
     def _auto_select_combinations_by_pattern(self):
         """Seleccionar automáticamente combinaciones que cumplan patrones comunes"""
@@ -460,14 +446,16 @@ class AppBase(QMainWindow):
         """Guardar y procesar los datos modales"""
         # Si no está conectado, conectar automáticamente
         if not self.SapModel:
-            self._connect_etabs()
+            if not self._connect_etabs():
+                return
             
         from core.utils.etabs_utils import get_modal_data,process_modal_data
-        modal_data = get_modal_data(self.SapModel)
+        if self.modal_data == None:
+            modal_data = get_modal_data(self.SapModel)
+            self.modal_data = modal_data
         if modal_data is not None and len(modal_data) > 0:
             results = process_modal_data(modal_data)
             if results:
-                self.modal_data = modal_data
                 self.modal_results = results
                 self.ui.modal_card.update_modal_results(results)
         else:
@@ -477,7 +465,8 @@ class AppBase(QMainWindow):
         """Mostrar tabla de datos modales""" #tabla
         # Si no está conectado, conectar automáticamente
         if not self.SapModel:
-            self._connect_etabs()
+            if not self._connect_etabs():
+                return
         
         try:
             if self.modal_data is None:
@@ -540,7 +529,8 @@ class AppBase(QMainWindow):
         """Método principal para calcular cortantes"""
         # Solo conectar si se solicita y no está conectado
         if not self.SapModel:
-            self._connect_etabs()
+            if not self._connect_etabs():
+                return
         
         try:
             # Validar combinaciones
@@ -653,7 +643,6 @@ class AppBase(QMainWindow):
 
     def _update_shear_displays(self):
         """Actualizar campos de cortantes y factores"""
-        from core.config.constants import DEFAULT_UNITS
         try:
             
             base_values = self._extract_base_shears()
@@ -813,14 +802,19 @@ class AppBase(QMainWindow):
             self.ui.le_desp_max_x.setText("N/A")
             self.ui.le_desp_max_y.setText("N/A")
             
-    def _show_displacements_plot(self):
-        """Mostrar gráfico de desplazamientos"""
-        self.calculate_displacements()
-        
+    def _generate_displacements_plot(self):
+        """Generar grafico de desplazamientos"""
+        if not hasattr(self.sismo,'displacement_results'):
+            self.calculate_displacements()
+            
         if not hasattr(self.sismo, 'fig_displacements') or self.sismo.fig_displacements is None:
             self.sismo.fig_displacements = self.sismo._create_displacement_figure(
                 self.sismo.disp_x, self.sismo.disp_y, self.sismo.disp_h, self.sismo.use_combo
             )
+            
+    def _show_displacements_plot(self):
+        """Mostrar gráfico de desplazamientos"""
+        self._generate_displacements_plot()
             
         try:
             from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
@@ -910,16 +904,20 @@ class AppBase(QMainWindow):
             
         except Exception as e:
             print(f"Error actualizando resultados de derivas: {e}")
-            
-
-    def _show_drifts_plot(self):
-        """Mostrar gráfico de desplazamientos internamente"""
-        self.calculate_drifts()
+         
+    def _generate_drifts_plot(self):
+        """Generar gráfico de derivas"""
+        if not hasattr(self.sismo,'drift_results'):
+            self.calculate_drifts()
         
         if not hasattr(self.sismo, 'fig_drifts') or self.sismo.fig_drifts is None:
             self.sismo.fig_drifts = self.sismo._create_drift_figure(
                 self.sismo.drift_x, self.sismo.drift_y, self.sismo.drift_h, self.sismo.use_combo
-            )
+            ) 
+
+    def _show_drifts_plot(self):
+        """Mostrar gráfico de derivas"""
+        self._generate_drifts_plot()
             
         try:
             from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
@@ -1080,9 +1078,104 @@ class AppBase(QMainWindow):
         if hasattr(self.ui, 'units_widget'):
             return self.ui.units_widget.get_current_units()
         return {'alturas': 'm', 'desplazamientos': 'mm', 'fuerzas': 'tonf'}
+    
+    # Trasversales
+    def _update_data(self):
+        """Actualización completa"""
+        if not self.SapModel:
+            if not self._connect_etabs():
+                return
+        
+        try:
+            print("🔄 Actualizando análisis modal y cortantes automáticamente...")
+            
+            print('Unidades')
+            # UNIDADES
+            units_dict = self.get_current_units()
+            self._update_interface_units(units_dict)
+            
+            print('Analisis Modal')
+            # ANÁLISIS MODAL
+            self.process_modal_data()
+            
+            print('Cortantes')
+            # CORTANTES
+            self._update_shear_displays()
+            
+            print('Desplazamientos')
+            # DESPLAZAMIENTOS
+            self.calculate_displacements()
+            
+            print('Derivas')
+            # DERIVAS
+            self.calculate_drifts()
+            
+            print('Torsion')
+            # IRREGULARIDAD TORSIONAL
+            self.calculate_torsion()
+            
+            print("✅ Actualización automática completa")
+                
+        except Exception as e:
+            print(f"Error en actualización automática: {e}")
+        
+
+    def _generate_all_plots(self):
+        """Generación de todos los gráficos necesarios"""
+        print("🔄 Generando todos los gráficos para memoria...")
+        
+        try:
+            # Desplazamientos
+            self._generate_displacements_plot()
+            
+            # Derivas
+            self._generate_displacements_plot()
+            
+            # Cortantes
+            self._create_shear_plot('static')
+            self._create_shear_plot('dynamic')
+            
+        except Exception as e:
+            print(f"⚠️ Error generando gráficos: {e}")
+            
+    
+    
+    def update_all_data(self):
+        """Actualizar todos los datos"""
+        if not self.SapModel:
+            if not self._connect_etabs():
+                return
+  
+        self._update_data()
+        self._generate_all_plots()
+        
+        print("✅ Actualización completa terminada")
+        
+
+    def _on_combination_changed(self):
+        """Actualizar cortantes cuando cambien las combinaciones"""
+        try:
+            if not self.SapModel:
+                if not self._connect_etabs():
+                    return
+
+            combinations = self.get_selected_combinations()
+            required = ['dynamic_x', 'dynamic_y', 'static_x', 'static_y']
+            
+            # Solo actualizar si todas las combinaciones están completas
+            if all(combinations[k].strip() and not combinations[k].startswith("No conectado") for k in required):
+                units_dict = self.get_current_units()
+                self._update_interface_units(units_dict)
+                self.calculate_displacements()
+                self.calculate_drifts()
+                self._update_shear_displays()
+                self.calculate_torsion()
+
+        except Exception as e:
+            print(f"⚠️ Error en actualización automática: {e}")
 
 
-    # Memorias y reportes
+# Memorias y reportes
     def _create_memory_generator(self, output_dir):
         """Crear generador de memoria específico del país"""
         country = self.config.get('country', '').lower()
@@ -1100,8 +1193,7 @@ class AppBase(QMainWindow):
         """Seleccionar directorio de salida para reportes"""
         directory = QFileDialog.getExistingDirectory(
             self,
-            "Seleccionar directorio de salida",
-            str(Path.home() / "Documents")
+            "Seleccionar directorio de salida"
         )
         return directory
         
@@ -1130,8 +1222,8 @@ class AppBase(QMainWindow):
                 self.show_message("Error", "No se pudo conectar con ETABS", 'error')
                 return
             
-            # AGREGAR: Forzar generación de todos los gráficos
-            self._force_generate_all_plots()
+            # Actualizar información
+            self.update_all_data()
             
             # Generar memoria usando el generador del país
             print("📄 GENERANDO MEMORIA DE CÁLCULO...")
@@ -1166,159 +1258,3 @@ class AppBase(QMainWindow):
         except Exception as e:
             self.show_message("Error", f"Error inesperado: {e}", 'error')
             
-    
-    # Trasversales
-    def update_sismo_data(self):
-        """Actualizar datos del objeto sismo desde interfaz"""
-        # Datos del proyecto
-        project_data = self.get_project_data()
-        for key, value in project_data.items():
-            setattr(self.sismo, key, value)
-        
-        # Combinaciones seleccionadas
-        combinations = self.get_selected_combinations()
-        self.sismo.loads.selected_combinations = combinations
-        
-        # Actualizar deriva máxima desde UI
-        if hasattr(self.ui, 'le_max_drift'):
-            try:
-                max_drift_value = float(self.ui.le_max_drift.text())
-                self.sismo.max_drift = max_drift_value
-            except ValueError:
-                # Si hay error, usar valor por defecto
-                self.sismo.max_drift = 0.007
-                self.ui.le_max_drift.setText("0.007")
-                
-    
-    def _auto_update_complete(self):
-        """Actualización automática completa - Modal Y Cortantes (sin bucle)"""
-        if not self.SapModel:
-            return
-            
-        from core.utils.etabs_utils import get_modal_data, process_modal_data
-        
-        try:
-            print("🔄 Actualizando análisis modal y cortantes automáticamente...")
-            
-            # 1. ANÁLISIS MODAL
-            modal_data = get_modal_data(self.SapModel)
-            
-            if modal_data is not None and len(modal_data) > 0:
-                modal_results = process_modal_data(modal_data)
-                if modal_results:
-                    #self._update_modal_fields(modal_results)
-                    self.modal_table_data = modal_data
-                    print("✅ Campos modales actualizados")
-            
-            # 2. CORTANTES AUTOMÁTICOS (método directo sin reconectar)
-            self.calculate_shear_forces(auto_connect=False)
-            
-            print("✅ Actualización automática completa")
-                
-        except Exception as e:
-            print(f"Error en actualización automática: {e}")
-        
-
-    def _force_generate_all_plots(self):
-        """Forzar generación de todos los gráficos necesarios"""
-        print("🔄 Generando todos los gráficos para memoria...")
-        
-        try:
-            # 1. Forzar cálculo de derivas si no existen
-            if not hasattr(self.sismo, 'fig_drifts') or self.sismo.fig_drifts is None:
-                print("  📊 Generando gráfico de derivas...")
-                self.calculate_drifts()
-            
-            # 2. Forzar cálculo de desplazamientos si no existen  
-            if not hasattr(self.sismo, 'fig_displacements') or self.sismo.fig_displacements is None:
-                print("  📈 Generando gráfico de desplazamientos...")
-                self.get_displacements()
-            
-            # 3. Forzar cálculo de cortantes si no existen
-            if (not hasattr(self.sismo, 'dynamic_shear_fig') or self.sismo.dynamic_shear_fig is None or
-                not hasattr(self.sismo, 'static_shear_fig') or self.sismo.static_shear_fig is None):
-                print("  ⚡ Generando gráficos de cortantes...")
-                self.calculate_shear_forces()
-            
-            # 4. Generar espectro si no existe
-            if not hasattr(self.sismo, 'fig_spectrum') or self.sismo.fig_spectrum is None:
-                print("  📊 Generando gráfico del espectro...")
-                if hasattr(self, 'plot_spectrum'):
-                    self.plot_spectrum()
-            
-            print("✅ Todos los gráficos generados")
-            
-        except Exception as e:
-            print(f"⚠️ Error generando gráficos: {e}")
-    
-    
-    def ensure_required_data_structure(self):
-        """Asegurar que exista la estructura de datos necesaria"""
-        # Inicializar estructura de datos si no existe
-        if not hasattr(self.sismo, 'data'):
-            from types import SimpleNamespace
-            self.sismo.data = SimpleNamespace()
-        
-        # Inicializar listas de datos si no existen
-        if not hasattr(self.sismo.data, 'modal_data'):
-            self.sismo.data.modal_data = []
-        
-        if not hasattr(self.sismo.data, 'torsion_data'):
-            self.sismo.data.torsion_data = []
-        
-        # Inicializar URLs de imágenes si no existe
-        if not hasattr(self.sismo, 'urls_imagenes'):
-            self.sismo.urls_imagenes = {
-                'portada': '',
-                'planta': '',
-                '3d': '',
-                'defX': '',
-                'defY': ''
-            }
-        
-    def update_all_data(self):
-        """Actualizar todos los datos"""
-        if not self.SapModel:
-            if not self._connect_etabs():
-                return
-        else:
-            # Si ya está conectado, actualizar directamente
-            self._auto_update_complete()
-        
-        print("✅ Actualización completa terminada")
-        
-
-    def _get_required_seismic_params(self) -> list:
-        """Obtener lista de parámetros sísmicos requeridos según el país"""
-        country = self.config.get('country', '').lower()
-        
-        if country == 'bolivia':
-            return ['Fa', 'Fv', 'So', 'I', 'R']  # Bolivia usa I (Ie)
-        elif country == 'peru':
-            return ['Z', 'U', 'S', 'R']  # Perú usa U, no I
-        else:
-            return ['R']  # Parámetro mínimo común
-
-    def _on_combination_changed(self):
-        """Actualizar cortantes cuando cambien las combinaciones"""
-        try:
-            if  getattr(self, '_updating_combinations', False):
-                return
-            
-            if not self.SapModel:
-                self._connect_etabs()
-            
-            self._updating_combinations = True
-            try:
-                combinations = self.get_selected_combinations()
-                required = ['dynamic_x', 'dynamic_y', 'static_x', 'static_y']
-                
-                # Solo actualizar si todas las combinaciones están completas
-                if all(combinations[k].strip() and not combinations[k].startswith("No conectado") for k in required):
-                    self._update_shear_displays()
-                    
-            finally:
-                self._updating_combinations = False
-                
-        except Exception as e:
-            print(f"⚠️ Error en actualización automática: {e}")

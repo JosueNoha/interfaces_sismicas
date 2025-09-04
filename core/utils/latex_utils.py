@@ -213,7 +213,7 @@ def replace_template_variables(content: str, variables: dict) -> str:
     for var, value in variables.items():
         # Formato: @variable.0nn o @variable
         patterns = [
-            rf'@{re.escape(var)}\.0nn',
+            rf'@{re.escape(var)}.0nn',
             rf'@{re.escape(var)}'
         ]
         

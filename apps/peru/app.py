@@ -310,12 +310,6 @@ class PeruSeismicApp(AppBase):
             if not output_dir:
                 return
             
-            # AGREGAR: Calcular cortantes antes de generar memoria
-            self.calculate_shear_forces()
-            
-            # Actualizar modelo
-            self.update_sismo_data()
-            
             # Generar memoria
             try:
                 from apps.peru.memory import PeruMemoryGenerator

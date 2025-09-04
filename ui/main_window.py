@@ -7,6 +7,8 @@ from ui.widgets.data_cards import (ProjectDataCard, SeismicParamsCard, UnitsPara
 DriftCard, TorsionCard, PortadaCard, DescripcionEstructuraCard, CriteriosModelamientoCard,
 DescripcionCargasCard, ModosPrincipalesCard)
 
+from PyQt5.QtWidgets import QTabWidget
+
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
@@ -93,7 +95,7 @@ class Ui_MainWindow(object):
 
     def _setup_tabs(self):
         """Configurar pestañas principales"""
-        self.tabWidget = QtWidgets.QTabWidget(self.centralwidget)
+        self.tabWidget = StyledTabWidget(self.centralwidget)
         
         # Tab Datos Generales
         self._setup_general_tab()
@@ -371,3 +373,162 @@ class Ui_MainWindow(object):
         # Botones principales
         self.b_actualizar.setText(_translate("MainWindow", "Actualizar Datos"))
         self.b_reporte.setText(_translate("MainWindow", "Generar Reporte"))
+        
+        
+class StyledTabWidget(QTabWidget):
+    """TabWidget con estilos modernos aplicados automáticamente"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.apply_modern_styles()
+    
+    def apply_modern_styles(self):
+        """Aplicar estilos modernos al TabWidget"""
+        self.setStyleSheet("""
+            /* ===== TAB WIDGET ===== */
+            QTabWidget {
+                background-color: #ffffff;
+                border: none;
+            }
+            
+            /* ===== TAB BAR ===== */
+            QTabWidget::pane {
+                background-color: #ffffff;
+                border: 2px solid #e3f2fd;
+                border-radius: 8px;
+                margin-top: -1px;
+            }
+            
+            QTabWidget::tab-bar {
+                alignment: left;
+            }
+            
+            /* ===== TABS ===== */
+            QTabBar::tab {
+                background-color: #f5f5f5;
+                color: #424242;
+                padding: 12px 20px;
+                margin-right: 2px;
+                border: 2px solid #e0e0e0;
+                border-bottom: none;
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+                min-width: 120px;
+                font-weight: 500;
+                font-size: 11px;
+            }
+            
+            QTabBar::tab:selected {
+                background-color: #ffffff;
+                color: #1976d2;
+                border: 2px solid #e3f2fd;
+                border-bottom: 2px solid #ffffff;
+                font-weight: 600;
+            }
+            
+            QTabBar::tab:hover:!selected {
+                background-color: #eeeeee;
+                color: #212121;
+                border-color: #bdbdbd;
+            }
+            
+            QTabBar::tab:pressed {
+                background-color: #e0e0e0;
+            }
+            
+            /* ===== FIRST AND LAST TABS ===== */
+            QTabBar::tab:first {
+                margin-left: 0px;
+            }
+            
+            QTabBar::tab:last {
+                margin-right: 0px;
+            }
+            
+            /* ===== DISABLED STATE ===== */
+            QTabBar::tab:disabled {
+                background-color: #fafafa;
+                color: #bdbdbd;
+                border-color: #eeeeee;
+            }
+            
+            /* ===== TAB CONTENT AREA ===== */
+            QTabWidget::pane {
+                position: absolute;
+                top: -2px;
+            }
+            
+            QTabWidget::pane:top {
+                top: -2px;
+            }
+            
+            /* ===== SCROLL BUTTONS (si hay muchas tabs) ===== */
+            QTabBar::scroller {
+                width: 20px;
+            }
+            
+            QTabBar QToolButton {
+                background-color: #f5f5f5;
+                border: 1px solid #e0e0e0;
+                border-radius: 4px;
+            }
+            
+            QTabBar QToolButton:hover {
+                background-color: #eeeeee;
+                border-color: #bdbdbd;
+            }
+            
+            QTabBar QToolButton::right-arrow {
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 6px solid #424242;
+                width: 0px;
+                height: 0px;
+            }
+            
+            QTabBar QToolButton::left-arrow {
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-bottom: 6px solid #424242;
+                width: 0px;
+                height: 0px;
+            }
+        """)
+    
+    def apply_accent_color(self, accent_color="#2196f3"):
+        """Aplicar color de acento personalizado"""
+        # Versión con color personalizable
+        accent_light = self._lighten_color(accent_color, 0.9)  # Para bordes
+        accent_text = self._darken_color(accent_color, 0.2)    # Para texto
+        
+        custom_style = f"""
+            QTabBar::tab:selected {{
+                color: {accent_text};
+                border: 2px solid {accent_light};
+                border-bottom: 2px solid #ffffff;
+            }}
+            
+            QTabWidget::pane {{
+                border: 2px solid {accent_light};
+            }}
+        """
+        
+        current_style = self.styleSheet()
+        self.setStyleSheet(current_style + custom_style)
+    
+    def _lighten_color(self, hex_color, factor):
+        """Aclarar un color hexadecimal"""
+        # Implementación simple - en producción usar QColor
+        if hex_color == "#2196f3":
+            return "#e3f2fd"
+        return "#e0e0e0"  # Fallback
+    
+    def _darken_color(self, hex_color, factor):
+        """Oscurecer un color hexadecimal"""
+        # Implementación simple - en producción usar QColor
+        if hex_color == "#2196f3":
+            return "#1976d2"
+        return "#424242"  # Fallback
+    

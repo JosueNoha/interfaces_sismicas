@@ -25,6 +25,15 @@ class DataCard(QFrame):
         self._setup_card_style()
         self._setup_card_structure()
         
+    def disable_combobox_wheel(self,combo: QComboBox) -> None:
+        """
+        Desactiva el cambio de valor con rueda del mouse en QComboBox
+        
+        Args:
+            combo: Widget QComboBox a proteger
+        """
+        combo.wheelEvent = lambda event: None
+        
     def _setup_card_style(self):
         """Configurar el estilo base de la card"""
         self.setFrameStyle(QFrame.StyledPanel)
@@ -317,8 +326,6 @@ class DataCard(QFrame):
         elif widget_type in ['QCheckBox', 'QRadioButton']:
             css_parts.extend([
                 f"{widget_type}::indicator {{ width: 18px; height: 18px; }}",
-                f"{widget_type}::indicator:unchecked {{ border: 2px solid #e0e0e0; background-color: #fafafa; border-radius: 4px; }}",
-                f"{widget_type}::indicator:checked {{ border: 2px solid #2196f3; background-color: #2196f3; border-radius: 4px; }}"
             ])
         
         # CSS extra si existe
@@ -534,6 +541,7 @@ class UnitsParamsCard(DataCard):
         self.combos['alturas'] = QComboBox()
         self.combos['alturas'].addItems(get_unit_options('alturas'))
         self.combos['alturas'].setCurrentText(get_default_unit('alturas'))
+        self.disable_combobox_wheel(self.combos['alturas'])
         self.add_field(0, 0, "Alturas:", self.combos['alturas'], "alturas", "Unidad de alturas")
         
         # Desplazamientos
@@ -541,6 +549,7 @@ class UnitsParamsCard(DataCard):
         self.combos['desplazamientos'] = QComboBox()
         self.combos['desplazamientos'].addItems(get_unit_options('desplazamientos'))
         self.combos['desplazamientos'].setCurrentText(get_default_unit('desplazamientos'))
+        self.disable_combobox_wheel(self.combos['desplazamientos'])
         self.add_field(0, 2, "Desplazamientos:", self.combos['desplazamientos'], "desplazamientos", "Unidad de desplazamientos")
         
         # Fuerzas
@@ -548,6 +557,7 @@ class UnitsParamsCard(DataCard):
         self.combos['fuerzas'] = QComboBox()
         self.combos['fuerzas'].addItems(get_unit_options('fuerzas'))
         self.combos['fuerzas'].setCurrentText(get_default_unit('fuerzas'))
+        self.disable_combobox_wheel(self.combos['fuerzas'])
         self.add_field(0, 4, "fuerzas:", self.combos['fuerzas'], "fuerzas", "Unidad de fuerzas")
         
     def connect_signals(self):
@@ -713,18 +723,24 @@ class CombinationsCard(DataCard):
         # Combinaciones Estáticas
         self.cb_comb_static_x = QComboBox()
         self.cb_comb_static_y = QComboBox()
+        self.disable_combobox_wheel(self.cb_comb_static_x)
+        self.disable_combobox_wheel(self.cb_comb_static_y)
         self.add_field(0, 0, "Estáticas X:", self.cb_comb_static_x, "cb_comb_static_x", "Combinaciones estáticas en X")
         self.add_field(0, 2, "Estáticas Y:", self.cb_comb_static_y, "cb_comb_static_y", "Combinaciones estáticas en Y")
         
         # Combinaciones Dinámicas
         self.cb_comb_dynamic_x = QComboBox()
         self.cb_comb_dynamic_y = QComboBox()
+        self.disable_combobox_wheel(self.cb_comb_dynamic_x)
+        self.disable_combobox_wheel(self.cb_comb_dynamic_y)
         self.add_field(1, 0, "Dinámicas X:", self.cb_comb_dynamic_x, "cb_comb_dynamic_x", "Combinaciones dinámicas en X")
         self.add_field(1, 2, "Dinámicas Y:", self.cb_comb_dynamic_y, "cb_comb_dynamic_y", "Combinaciones dinámicas en Y")
         
         # Combinaciones de Desplazamientos
         self.cb_comb_displacement_x = QComboBox()
         self.cb_comb_displacement_y = QComboBox()
+        self.disable_combobox_wheel(self.cb_comb_displacement_x)
+        self.disable_combobox_wheel(self.cb_comb_displacement_y)
         self.add_field(2, 0, "Desplaz. X:", self.cb_comb_displacement_x, "cb_comb_displacement_x", "Combinaciones de desplazamiento en X")
         self.add_field(2, 2, "Desplaz. Y:", self.cb_comb_displacement_y, "cb_comb_displacement_y", "Combinaciones de desplazamiento en Y")
         
@@ -962,6 +978,7 @@ class TorsionCard(DataCard):
         # Combinación para torsión
         self.cb_torsion_combo = QComboBox()
         self.cb_torsion_combo.addItems(["Dinámicas", "Estáticas", "Desplazamientos"])
+        self.disable_combobox_wheel(self.cb_torsion_combo)
         self.add_field(0, 2, "Combinación:", self.cb_torsion_combo, "cb_torsion_combo", "Combinación para el cálculo")
         
         self.le_torsion_limit = QLineEdit("1.30")

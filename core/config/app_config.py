@@ -11,7 +11,7 @@ BOLIVIA_CONFIG = {
     # Rutas de recursos
     'template_path': 'apps/bolivia/resources/templates/plantilla_bolivia.ltx',
     'mapa_sismico': 'mapa_sismico_bolivia.png',
-    'icon_path': 'shared/resources/yabar_logo.ico',
+    'icon_path': 'shared_resources/yabar_logo.ico',
     
     # Parámetros sísmicos por defecto
     'parametros_defecto': {
@@ -70,7 +70,7 @@ PERU_CONFIG = {
     # Rutas de recursos
     'template_path': 'apps/peru/resources/templates/plantilla_peru.ltx',
     'mapa_sismico': None,  # Perú no tiene mapa específico implementado
-    'icon_path': 'shared/resources/yabar_logo.ico',
+    'icon_path': 'shared_resources/yabar_logo.ico',
     
     # Parámetros sísmicos por defecto
     'parametros_defecto': {

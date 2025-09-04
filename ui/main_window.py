@@ -33,9 +33,9 @@ class Ui_MainWindow(object):
             
         # Layout principal
         self.main_layout = QtWidgets.QVBoxLayout(self.centralwidget)
-        self.main_layout.setContentsMargins(20, 20, 20, 20)
-        self.main_layout.setSpacing(15)
-        
+        self.main_layout.setContentsMargins(15, 15, 15, 15)  # Reducido de (20, 20, 20, 20)
+        self.main_layout.setSpacing(10)  # Reducido de 15
+            
         # Header con título
         self._setup_header()
         
@@ -185,39 +185,40 @@ class Ui_MainWindow(object):
                 self.ui._update_text_status('cargas', True)
 
     def _setup_header(self):
-        """Configurar header con título mejorado"""
+        """Header compacto con título"""
         header_layout = QtWidgets.QHBoxLayout()
-        header_layout.setContentsMargins(0, 0, 0, 20)  # NUEVO: Margen inferior
+        header_layout.setContentsMargins(0, 0, 0, 15)  # Reducido de 20
         
-        # Container del título con estilo
+        # Container del título con estilo COMPACTO
         title_container = QtWidgets.QWidget()
         title_container.setStyleSheet("""
             QWidget {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
                     stop:0 #2196f3, stop:1 #1976d2);
-                border-radius: 12px;
-                padding: 15px;
-                margin: 0 20px;
+                border-radius: 8px;          /* Reducido de 12px */
+                padding: 10px;               /* Reducido de 15px */
+                margin: 0 15px;              /* Reducido de 0 20px */
             }
         """)
         
         title_layout = QtWidgets.QHBoxLayout(title_container)
-        title_layout.setContentsMargins(20, 10, 20, 10)
+        title_layout.setContentsMargins(15, 8, 15, 8)  # Reducido de (20, 10, 20, 10)
         
-        # Icono del título
+        # Icono del título COMPACTO
         icon_label = QtWidgets.QLabel()
-        icon_label.setText("🏗️")  # Emoji de construcción
+        icon_label.setText("🏗️")
         icon_label.setStyleSheet("""
-            font-size: 24px;
+            font-size: 20px;             /* Reducido de 24px */
             color: white;
-            margin-right: 15px;
+            margin-right: 10px;          /* Reducido de 15px */
         """)
         
+        # ✅ MANTENER self.label_title (NO self.title_label)
         self.label_title = QtWidgets.QLabel()
         font = QtGui.QFont()
-        font.setPointSize(20)  # MEJORA: Tamaño más grande
+        font.setPointSize(16)            # Reducido de 20
         font.setBold(True)
-        font.setFamily("Segoe UI")  # NUEVO: Fuente específica
+        font.setFamily("Segoe UI")
         self.label_title.setFont(font)
         self.label_title.setAlignment(QtCore.Qt.AlignCenter)
         self.label_title.setStyleSheet("""
@@ -233,7 +234,8 @@ class Ui_MainWindow(object):
         
         header_layout.addWidget(title_container)
         self.main_layout.addLayout(header_layout)
-
+        
+    
     def _setup_tabs(self):
         """Configurar pestañas principales"""
         self.tabWidget = StyledTabWidget(self.centralwidget)
@@ -478,45 +480,80 @@ class Ui_MainWindow(object):
 
 
     def _setup_bottom_buttons(self):
-        """Configurar botones inferiores con estilo mejorado"""
+        """Configurar botones inferiores COMPACTOS con estilo mejorado"""
         buttons_container = QtWidgets.QWidget()
         buttons_container.setStyleSheet("""
             QWidget {
                 background-color: #f8f9fa;
                 border: 1px solid #e9ecef;
-                border-radius: 12px;
-                padding: 15px;
-                margin-top: 15px;
+                border-radius: 8px;            /* Reducido de 12px */
+                padding: 10px;                 /* Reducido de 15px */
+                margin-top: 10px;              /* Reducido de 15px */
             }
         """)
         
         buttons_layout = QtWidgets.QHBoxLayout(buttons_container)
-        buttons_layout.setSpacing(15)
+        buttons_layout.setSpacing(10)                      # Reducido de 15
         
-        # Botones ETABS
+        # Estilo para botones ETABS con hover (MISMO TAMAÑO que botones principales)
+        etabs_button_style = """
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ffffff, stop:1 #f8f9fa);
+                border: 1px solid #dee2e6;
+                border-radius: 6px;
+                color: #495057;
+                font-weight: 500;
+                font-size: 11px;               /* Mismo que botones principales */
+                padding: 8px 16px;             /* Mismo que botones principales */
+                min-width: 120px;              /* Mismo que botones principales */
+                min-height: 32px;              /* Mismo que botones principales */
+            }
+            
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #e8f4f8, stop:1 #d1ecf1);
+                border-color: #17a2b8;
+                color: #138496;
+            }
+            
+            QPushButton:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #bee5eb, stop:1 #a6e1e8);
+                border-color: #138496;
+            }
+            
+            QPushButton:disabled {
+                background: #f5f5f5;
+                border-color: #e0e0e0;
+                color: #bdbdbd;
+            }
+        """
+        
+        # Botones ETABS COMPACTOS con hover (MISMO TAMAÑO)
         etabs_layout = QtWidgets.QHBoxLayout()
         
         self.b_connect_etabs = QtWidgets.QPushButton("Conectar ETABS")
-        self.b_connect_etabs.setMinimumSize(QtCore.QSize(120, 30))
+        self.b_connect_etabs.setStyleSheet(etabs_button_style)      # Sin setMinimumSize, usa el del CSS
         etabs_layout.addWidget(self.b_connect_etabs)
         
         self.b_open_etabs = QtWidgets.QPushButton("Abrir Archivo ETABS")
-        self.b_open_etabs.setMinimumSize(QtCore.QSize(140, 30))
+        self.b_open_etabs.setStyleSheet(etabs_button_style)         # Sin setMinimumSize, usa el del CSS
         etabs_layout.addWidget(self.b_open_etabs)
         
-        # Indicador de estado ETABS
+        # Indicador de estado ETABS COMPACTO
         self.lbl_etabs_status = QtWidgets.QLabel("⚪ No conectado")
         self.lbl_etabs_status.setStyleSheet("""
             QLabel {
-                padding: 5px 10px;
+                padding: 3px 8px;              /* Reducido de 5px 10px */
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 background-color: #f8f9fa;
                 color: #6c757d;
-                font-size: 11px;
+                font-size: 10px;               /* Reducido de 11px */
             }
         """)
-        self.lbl_etabs_status.setMinimumSize(QtCore.QSize(200, 30))
+        self.lbl_etabs_status.setMinimumSize(QtCore.QSize(180, 26))  # Reducido de (200, 30)
         etabs_layout.addWidget(self.lbl_etabs_status)
         
         buttons_layout.addLayout(etabs_layout)
@@ -525,19 +562,19 @@ class Ui_MainWindow(object):
         spacer = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         buttons_layout.addItem(spacer)
         
-        # Estilo común para botones principales
+        # Estilo común COMPACTO para botones principales
         button_style = """
             QPushButton {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
                     stop:0 #ffffff, stop:1 #f8f9fa);
-                border: 2px solid #dee2e6;
-                border-radius: 8px;
+                border: 1px solid #dee2e6;     /* Reducido de 2px */
+                border-radius: 6px;            /* Reducido de 8px */
                 color: #495057;
                 font-weight: 600;
-                font-size: 12px;
-                padding: 12px 20px;
-                min-width: 140px;
-                min-height: 44px;
+                font-size: 11px;               /* Reducido de 12px */
+                padding: 8px 16px;             /* Reducido de 12px 20px */
+                min-width: 120px;              /* Reducido de 140px */
+                min-height: 32px;              /* Reducido de 44px */
             }
             
             QPushButton:hover {
@@ -560,12 +597,12 @@ class Ui_MainWindow(object):
             }
         """
         
-        # Botón actualizar con icono
-        self.b_actualizar = QtWidgets.QPushButton("🔄 Actualizar Datos")
+        # Botón actualizar COMPACTO con icono
+        self.b_actualizar = QtWidgets.QPushButton("🔄 Actualizar")  # Texto más corto
         self.b_actualizar.setStyleSheet(button_style)
         buttons_layout.addWidget(self.b_actualizar)
         
-        # Botón reporte con icono y estilo destacado
+        # Botón reporte COMPACTO con icono y estilo destacado
         self.b_reporte = QtWidgets.QPushButton("📄 Generar Reporte")
         report_style = button_style.replace(
             "stop:0 #ffffff, stop:1 #f8f9fa",
@@ -577,10 +614,8 @@ class Ui_MainWindow(object):
         self.b_reporte.setStyleSheet(report_style)
         buttons_layout.addWidget(self.b_reporte)
         
-        # Espaciador
-        buttons_layout.addItem(spacer)
-        
         self.main_layout.addWidget(buttons_container)
+    
 
     def retranslateUi(self, MainWindow):
         """Configurar textos de la interfaz"""
@@ -594,7 +629,7 @@ class Ui_MainWindow(object):
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_memory), _translate("MainWindow", "Memoria"))
         
         # Botones principales
-        self.b_actualizar.setText(_translate("MainWindow", "Actualizar Datos"))
+        self.b_actualizar.setText(_translate("MainWindow", "🔄 Actualizar"))
         self.b_reporte.setText(_translate("MainWindow", "Generar Reporte"))
         
         
@@ -606,46 +641,41 @@ class StyledTabWidget(QTabWidget):
         self.apply_modern_styles()
     
     def apply_modern_styles(self):
-        """Aplicar estilos modernos al TabWidget"""
+        """Aplicar estilos modernos COMPACTOS al TabWidget"""
         self.setStyleSheet("""
-            /* ===== TAB WIDGET ===== */
+            /* ===== TAB WIDGET COMPACTO ===== */
             QTabWidget {
                 background-color: #ffffff;
                 border: none;
             }
             
-            /* ===== TAB BAR ===== */
             QTabWidget::pane {
                 background-color: #ffffff;
-                border: 2px solid #e3f2fd;
-                border-radius: 8px;
+                border: 1px solid #e3f2fd;     /* Reducido de 2px */
+                border-radius: 6px;            /* Reducido de 8px */
                 margin-top: -1px;
             }
             
-            QTabWidget::tab-bar {
-                alignment: left;
-            }
-            
-            /* ===== TABS ===== */
+            /* ===== TABS COMPACTAS ===== */
             QTabBar::tab {
                 background-color: #f5f5f5;
                 color: #424242;
-                padding: 12px 20px;
+                padding: 8px 16px;             /* Reducido de 12px 20px */
                 margin-right: 2px;
-                border: 2px solid #e0e0e0;
+                border: 1px solid #e0e0e0;     /* Reducido de 2px */
                 border-bottom: none;
-                border-top-left-radius: 8px;
-                border-top-right-radius: 8px;
-                min-width: 120px;
+                border-top-left-radius: 6px;   /* Reducido de 8px */
+                border-top-right-radius: 6px;  /* Reducido de 8px */
+                min-width: 100px;              /* Reducido de 120px */
                 font-weight: 500;
-                font-size: 11px;
+                font-size: 10px;               /* Reducido de 11px */
             }
             
             QTabBar::tab:selected {
                 background-color: #ffffff;
                 color: #1976d2;
-                border: 2px solid #e3f2fd;
-                border-bottom: 2px solid #ffffff;
+                border: 1px solid #e3f2fd;     /* Reducido de 2px */
+                border-bottom: 1px solid #ffffff;
                 font-weight: 600;
             }
             
@@ -654,71 +684,8 @@ class StyledTabWidget(QTabWidget):
                 color: #212121;
                 border-color: #bdbdbd;
             }
-            
-            QTabBar::tab:pressed {
-                background-color: #e0e0e0;
-            }
-            
-            /* ===== FIRST AND LAST TABS ===== */
-            QTabBar::tab:first {
-                margin-left: 0px;
-            }
-            
-            QTabBar::tab:last {
-                margin-right: 0px;
-            }
-            
-            /* ===== DISABLED STATE ===== */
-            QTabBar::tab:disabled {
-                background-color: #fafafa;
-                color: #bdbdbd;
-                border-color: #eeeeee;
-            }
-            
-            /* ===== TAB CONTENT AREA ===== */
-            QTabWidget::pane {
-                position: absolute;
-                top: -2px;
-            }
-            
-            QTabWidget::pane:top {
-                top: -2px;
-            }
-            
-            /* ===== SCROLL BUTTONS (si hay muchas tabs) ===== */
-            QTabBar::scroller {
-                width: 20px;
-            }
-            
-            QTabBar QToolButton {
-                background-color: #f5f5f5;
-                border: 1px solid #e0e0e0;
-                border-radius: 4px;
-            }
-            
-            QTabBar QToolButton:hover {
-                background-color: #eeeeee;
-                border-color: #bdbdbd;
-            }
-            
-            QTabBar QToolButton::right-arrow {
-                image: none;
-                border-left: 4px solid transparent;
-                border-right: 4px solid transparent;
-                border-top: 6px solid #424242;
-                width: 0px;
-                height: 0px;
-            }
-            
-            QTabBar QToolButton::left-arrow {
-                image: none;
-                border-left: 4px solid transparent;
-                border-right: 4px solid transparent;
-                border-bottom: 6px solid #424242;
-                width: 0px;
-                height: 0px;
-            }
         """)
+
     
     def apply_accent_color(self, accent_color="#2196f3"):
         """Aplicar color de acento personalizado"""

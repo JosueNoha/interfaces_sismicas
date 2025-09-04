@@ -35,18 +35,18 @@ class DataCard(QFrame):
         combo.wheelEvent = lambda event: None
         
     def _setup_card_style(self):
-        """Configurar el estilo base de la card"""
+        """Configurar el estilo base COMPACTO de la card"""
         self.setFrameStyle(QFrame.StyledPanel)
         self.setStyleSheet("""
             DataCard {
                 background-color: #ffffff;
-                border: 2px solid #e3f2fd;
-                border-radius: 12px;
-                margin: 8px;
+                border: 1px solid #e3f2fd;     /* Reducido de 2px */
+                border-radius: 8px;            /* Reducido de 12px */
+                margin: 4px;                   /* Reducido de 8px */
             }
             
             DataCard:hover {
-                border: 2px solid #2196f3;
+                border: 1px solid #2196f3;     /* Reducido de 2px */
                 background-color: #fafffe;
             }
         """)
@@ -58,8 +58,8 @@ class DataCard(QFrame):
         """Configurar estructura base de la card"""
         # Layout principal
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(20, 16, 20, 20)
-        self.main_layout.setSpacing(16)
+        self.main_layout.setContentsMargins(12, 8, 12, 12)  # Reducido de (20, 16, 20, 20)
+        self.main_layout.setSpacing(8)  # Reducido de 16
         
         # Header si hay título
         if self.title:
@@ -69,11 +69,11 @@ class DataCard(QFrame):
         self.content_widget = QWidget()
         self.content_layout = QGridLayout(self.content_widget)
         self.content_layout.setContentsMargins(0, 0, 0, 0)
-        self.content_layout.setHorizontalSpacing(20)
-        self.content_layout.setVerticalSpacing(12)
+        self.content_layout.setHorizontalSpacing(12)  # Reducido de 20
+        self.content_layout.setVerticalSpacing(6)     # Reducido de 12
         
         self.main_layout.addWidget(self.content_widget)
-        
+            
     def _create_header(self):
         """Crear header con icono y título"""
         header_layout = QHBoxLayout()
@@ -128,26 +128,19 @@ class DataCard(QFrame):
     
     def add_field(self, row, col, label_text, widget, field_name=None, tooltip=""):
         """
-        Agregar un campo a la card
-        
-        Args:
-            row: Fila en el grid
-            col: Columna para el label (widget va en col+1)
-            label_text: Texto del label
-            widget: Widget del campo
-            field_name: Nombre interno del campo (opcional)
-            tooltip: Tooltip descriptivo
+        Agregar campo COMPACTO con label a la card
         """
-        # Label
+        # Crear label
         label = QLabel(label_text)
         label.setStyleSheet("""
             QLabel {
                 color: #424242;
                 font-weight: 600;
-                font-size: 11px;
+                font-size: 10px;        /* Reducido de 11px */
                 background: transparent;
                 border: none;
                 min-width: 70px;
+                padding: 2px 0px;      /* Reducido de 4px */
             }
         """)
         
@@ -155,13 +148,14 @@ class DataCard(QFrame):
         self._apply_field_style(widget)
         
         if tooltip:
+            label.setToolTip(tooltip)
             widget.setToolTip(tooltip)
-            
-        widget.setMinimumHeight(38)
+        
+        # Política de tamaño
         widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         
-        # Configurar altura mínima de la fila
-        self.content_layout.setRowMinimumHeight(row, 48)
+        # Configurar altura mínima de la fila (COMPACTA)
+        self.content_layout.setRowMinimumHeight(row, 32)  # Reducido de 48
         
         # Agregar al layout
         self.content_layout.addWidget(label, row, col)
@@ -202,75 +196,48 @@ class DataCard(QFrame):
         """Aplicar estilo base a los campos usando configuración centralizada"""
         widget_type = widget.__class__.__name__
         
-        # Configuración base para todos los widgets
+        # Configuración base COMPACTA para todos los widgets
         base_config = {
-            'padding': '10px 12px',
-            'border': '2px solid #e0e0e0',
-            'border_radius': '8px',
+            'padding': '6px 8px',        # Reducido de '10px 12px'
+            'border': '1px solid #e0e0e0',  # Reducido de '2px'
+            'border_radius': '6px',      # Reducido de '8px'
             'background_color': '#fafafa',
-            'font_size': '11px',
+            'font_size': '10px',         # Reducido de '11px'
             'color': '#333333',
-            'min_height': '36px'
+            'min_height': '24px'         # Reducido de '36px'
         }
         
-        # Configuraciones específicas por tipo
+        # Configuraciones específicas por tipo (COMPACTAS)
         widget_configs = {
             'input_widgets': {
                 'types': ['QLineEdit', 'QSpinBox', 'QDoubleSpinBox'],
                 'config': base_config,
-                'height': 38,
+                'height': 28,                # Reducido de 38
                 'size_policy': (QSizePolicy.Expanding, QSizePolicy.Fixed)
             },
             'QComboBox': {
                 'types': ['QComboBox'],
                 'config': {**base_config, 'extra_css': """
-                    QComboBox::drop-down { border: none; width: 20px; }
-                    QComboBox::down-arrow { image: none; border: none; width: 12px; height: 12px; }
+                    QComboBox::drop-down { border: none; width: 18px; }
+                    QComboBox::down-arrow { image: none; border: none; width: 10px; height: 10px; }
                 """},
-                'height': 38,
+                'height': 28,                # Reducido de 38
                 'size_policy': (QSizePolicy.Expanding, QSizePolicy.Fixed)
-            },
-            'QLabel': {
-                'types': ['QLabel'],
-                'config': {
-                    'color': '#424242',
-                    'font_weight': '600',
-                    'font_size': '11px',
-                    'background': 'transparent',
-                    'border': 'none',
-                    'min_width': '70px',
-                    'padding': '2px 0px'
-                }
             },
             'QPushButton': {
                 'types': ['QPushButton'],
                 'config': {
-                    'background_color': '#f5f5f5',
-                    'color': '#424242',
-                    'border': '2px solid #e0e0e0',
-                    'padding': '10px 16px',
-                    'border_radius': '8px',
+                    'padding': '4px 10px',   # Reducido de '8px 16px'
+                    'border': '1px solid #ddd',
+                    'border_radius': '6px',
+                    'background_color': '#ffffff',
+                    'font_size': '10px',     # Reducido de '11px'
+                    'color': '#212121',
                     'font_weight': '500',
-                    'font_size': '11px',
-                    'min_height': '36px'
+                    'min_height': '22px'     # Reducido de '32px'
                 },
-                'height': 38,
+                'height': 26,                # Reducido de 36
                 'size_policy': (QSizePolicy.Preferred, QSizePolicy.Fixed)
-            },
-            'checkable_widgets': {
-                'types': ['QCheckBox', 'QRadioButton'],
-                'config': {
-                    'color': '#424242',
-                    'font_size': '11px',
-                    'font_weight': '500',
-                    'spacing': '8px'
-                }
-            },
-            'text_areas': {
-                'types': ['QTextEdit', 'QPlainTextEdit'],
-                'config': {**base_config, 'padding': '12px'},
-                'height': 80,
-                'size_policy': (QSizePolicy.Expanding, QSizePolicy.Expanding)
             }
         }
         

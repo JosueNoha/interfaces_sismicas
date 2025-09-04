@@ -436,6 +436,7 @@ class SeismicBase:
             table = table[['Story','Height','Drifts_x','Drifts_y']]
             table = table.sort_values(by='Story', 
                          key=lambda x: x.map({v: i for i, v in enumerate(story_order)}))
+            self.tables.drift_table = table
             
             # Aplicar unidades
             table[['Height']] *= u.mm
@@ -580,6 +581,9 @@ class SeismicBase:
                 ['Story', 'OutputCase', 'Item', 'Max Drift', 'Avg Drift', 'Ratio']].copy()
             self.torsion_table_data = torsion_table_data
             self.torsion_results = self._process_torsion_data(torsion_table_data, cases_x, cases_y, half_condition, ratio_max)
+            
+            self.tables.torsion_x = torsion_table_data[torsion_table_data['OutputCase'].isin(cases_x)][['Story','Max Drift', 'Avg Drift', 'Ratio']]
+            self.tables.torsion_y = torsion_table_data[torsion_table_data['OutputCase'].isin(cases_y)][['Story','Max Drift', 'Avg Drift', 'Ratio']]
             
             return True
             

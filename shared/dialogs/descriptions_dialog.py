@@ -134,29 +134,44 @@ La estructura se considera empotrada en la base y se ha modelado considerando la
         'modelamiento': """El modelo matemático de la estructura fue desarrollado utilizando elementos finitos tridimensionales.
 
 Se consideraron los siguientes aspectos en el modelamiento:
+
 • Elementos viga representados con elementos frame
+
 • Elementos placa representados con elementos shell  
+
 • Masas concentradas en el centro de masa de cada nivel
+
 • Rigidez de losa infinita en su plano (diafragma rígido)
+
 • Condiciones de apoyo empotrado en la base
+
 • Propiedades mecánicas del concreto según normativa
+
 
 El análisis incluye la evaluación de modos de vibración y respuesta sísmica según el espectro de diseño correspondiente.""",
         
         'cargas': """Se consideraron las siguientes cargas para el diseño estructural:
 
 CARGAS PERMANENTES:
+
 • Peso propio de elementos estructurales (calculado automáticamente)
+
 • Sobrecarga muerta: 100 kg/m² (tabiquería y acabados)
+
 • Peso de instalaciones y equipos
 
 CARGAS VARIABLES:
+
 • Sobrecarga viva: 200 kg/m² (uso típico de edificación)
+
 • Carga viva de techo: 100 kg/m²
 
 CARGAS SÍSMICAS:
+
 • Aplicadas según la normativa sísmica vigente
+
 • Espectro de respuesta según las condiciones del sitio
+
 • Combinaciones de carga incluyendo efectos sísmicos"""
         }
 

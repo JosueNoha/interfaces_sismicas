@@ -86,11 +86,11 @@ class PeruSeismicApp(AppBase):
         except Exception as e:
             print(f"Error agregando selectores Perú: {e}")
 
-    def _actualize_zona(self, index):
+    def _actualize_zona(self):
         """Actualizar factor Z según zona"""
         try:
             Z = {'0': '0.10', '1': '0.25', '2': '0.35', '3': '0.45'}  # index 0-3
-            z_value = float(Z[str(index)])
+            z_value = float(Z[str(self.cb_suelo.currentIndex())])
             
             self.sismo.Z = z_value
             # Verificar que el campo existe antes de actualizarlo
@@ -148,6 +148,36 @@ class PeruSeismicApp(AppBase):
         else:
             self.le_u_display.setReadOnly(True)
             #self.le_u_display.setStyleSheet("QLineEdit { background-color: #f0f0f0; }")
+
+    def get_espectro(self):
+        import numpy as np
+        Z,U,S,Tp,Tl = self.sismo.Z,self.sismo.U,self.sismo.S,self.sismo.Tp,self.sismo.Tl 
+        
+        T = np.arange(0, 4+0.01, 0.01)
+        Sa = np.zeros_like(T)
+
+        idx1 = T <= Tp
+        idx2 = (T > Tp) & (T <= Tl)
+        idx3 = T >= Tl
+
+        # Tramo 1
+        Sa[idx1] = 2.5*Z*U*S
+        # Tramo 2
+        Sa[idx2] = 2.5*Tp/T[idx2]*Z*U*S
+        # Tramo 3 
+        Sa[idx3] = 2.5*Tp*Tl/T[idx3]**2*Z*U*S
+        
+        self.sismo.Sa_max = max(Sa)*1.2
+        
+        
+        return T, Sa
+    
+    def save_espectro(self,output_dir):
+        import numpy as np
+        from  pathlib import Path
+        T,Sa = self.get_espectro()
+        datos = np.column_stack((T, Sa))
+        np.savetxt(Path(output_dir) / 'espectro_peru.txt' , datos, fmt="%.3f")
             
     def _initialize_peru_defaults(self):
         """Inicializar valores por defecto de Perú después de crear la interfaz"""
@@ -161,7 +191,7 @@ class PeruSeismicApp(AppBase):
                     return
             
             print("✅ Inicializando valores por defecto Perú...")
-            self._actualize_zona(1)  # Zona 2 por defecto (index 1)
+            self._actualize_zona()  # Zona 2 por defecto (index 1)
             self._actualize_categoria()
             print("✅ Valores inicializados correctamente")
             
@@ -232,102 +262,31 @@ class PeruSeismicApp(AppBase):
         except Exception as e:
             print(f"Error validando parámetros Perú: {e}")
     
-    def calculate_peru_spectrum(self) -> Tuple:
-        """Calcular espectro de respuesta según E.030"""
-        try:
-            import numpy as np
-            
-            # Obtener parámetros desde interfaz
-            if hasattr(self, 'seismic_params_widget'):
-                params = self.seismic_params_widget.get_parameters()
-                self.sismo.Z = float(params.get('Z', self.sismo.Z))
-                self.sismo.U = float(params.get('U', self.sismo.U))
-                self.sismo.S = float(params.get('S', self.sismo.S))
-                self.sismo.Tp = float(params.get('Tp', self.sismo.Tp))
-                self.sismo.Tl = float(params.get('Tl', self.sismo.Tl))
-            
-            # Generar espectro E.030
-            T = np.arange(0, 4+0.01, 0.01)
-            Sa = np.zeros_like(T)
-            
-            # Tramos según E.030
-            idx1 = T <= self.sismo.Tp
-            idx2 = (T > self.sismo.Tp) & (T <= self.sismo.Tl)  
-            idx3 = T > self.sismo.Tl
-            
-            base_value = 2.5 * self.sismo.Z * self.sismo.U * self.sismo.S
-            
-            Sa[idx1] = base_value
-            Sa[idx2] = base_value * self.sismo.Tp / T[idx2]
-            Sa[idx3] = base_value * self.sismo.Tp * self.sismo.Tl / (T[idx3]**2)
-            
-            # Almacenar para gráficos
-            self.sismo.Sa_max = max(Sa) * 1.2
-            
-            # Actualizar display de parámetros
-            self._update_peru_parameters_display()
-
-            if hasattr(self.sismo, 'espectro_peru'):
-                T, Sa = self.sismo.espectro_peru()
-                self.sismo.fig_spectrum = self.sismo._create_spectrum_figure(T, Sa, 'peru')
-                        
-            info = f"""✅ Espectro E.030 Calculado:
-
-📊 PARÁMETROS:
-   Z = {self.sismo.Z:.3f}, U = {self.sismo.U:.1f}, S = {self.sismo.S:.2f}
-   Tp = {self.sismo.Tp:.2f} s, Tl = {self.sismo.Tl:.2f} s
-
-📈 RESULTADOS:
-   Sa máxima = {np.max(Sa):.4f} g
-   Puntos generados: {len(T)}"""
-            
-            self.show_info(info)
-            return T, Sa
-            
-        except Exception as e:
-            self.show_error(f"Error calculando espectro Perú: {str(e)}")
-            return [], []
     
     def generate_report(self):
         """Generar reporte específico de Perú"""
         try:
-            # Validar datos del proyecto
-            project_data = self.get_project_data()
-            from core.utils.common_validations import validate_project_data
-            
-            is_valid, errors = validate_project_data(project_data)
-            if not is_valid:
-                self.show_error("Errores en datos:\n" + "\n".join(f"• {e}" for e in errors))
-                return
-            
-            # Calcular espectro
-            T, Sa = self.calculate_peru_spectrum()
-            if len(Sa) == 0:
-                return
-            
             # Seleccionar directorio
             output_dir = self.get_output_directory()
+            
             if not output_dir:
                 return
             
+            from apps.peru.memory import PeruMemoryGenerator
+            memory_generator = PeruMemoryGenerator(self.sismo, output_dir)
+            
+            self.save_espectro(memory_generator.output_dir)
+            self.update_all_data()
             # Generar memoria
-            try:
-                from apps.peru.memory import PeruMemoryGenerator
+            tex_file = memory_generator.generate_memory()
                 
-                memory_generator = PeruMemoryGenerator(self.sismo, output_dir)
-                tex_file = memory_generator.generate_memory()
-                
-                self.show_info(
-                    f"✅ Memoria Perú generada!\n\n"
-                    f"📁 {output_dir}\n"
-                    f"📄 {tex_file.name}\n\n"
-                    f"Incluye: parámetros E.030, espectro, análisis modal"
-                )
-                
-            except ImportError as e:
-                self.show_error(f"Error importando generador Perú: {e}")
-            except Exception as e:
-                self.show_error(f"Error generando memoria: {e}")
+            self.show_info(
+                f"✅ Memoria Perú generada!\n\n"
+                f"📁 {output_dir}\n"
+                f"📄 {tex_file.name}\n\n"
+                f"Incluye: parámetros E.030, espectro, análisis modal"
+            )
+       
                 
         except Exception as e:
             self.show_error(f"Error en reporte Perú: {str(e)}")

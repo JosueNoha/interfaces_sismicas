@@ -1012,11 +1012,11 @@ class TorsionCard(DataCard):
             threshold = float(text)
             if 1.0 <= threshold <= 2.0:
                 self.torsion_threshold_changed.emit(threshold)
-                self.set_widget_validation_style(self.le_max_drift, 'default')
+                self.set_widget_validation_style(self.le_torsion_limit, 'default')
             else:
-                self.set_widget_validation_style(self.le_max_drift, 'warning')
+                self.set_widget_validation_style(self.le_torsion_limit, 'warning')
         except ValueError:
-            self.set_widget_validation_style(self.le_max_drift, 'warning')
+            self.set_widget_validation_style(self.le_torsion_limit, 'warning')
             
     def _get_torsion_limit(self) -> float:
         """Obtener límite de torsión validado"""
@@ -1083,7 +1083,6 @@ class TorsionCard(DataCard):
     
 class PortadaCard(DataCard):
     """Card para portada"""
-    #units_changed = pyqtSignal(dict) # Señal cuando cambian las unidades
     
     def __init__(self, parent=None):
         super().__init__("Sección de Portada", "📒", parent)
@@ -1114,12 +1113,10 @@ class PortadaCard(DataCard):
 
 class DescripcionEstructuraCard(DataCard):
     """Card de Descripción de la Estructura"""
-    #units_changed = pyqtSignal(dict) # Señal cuando cambian las unidades
-    
+
     def __init__(self, parent=None):
         super().__init__("Descripción de la Estructura", "📒", parent)
         self._create_fields()
-        #self.connect_signals()
         
     def _create_fields(self):
         """Crear campos específicos"""

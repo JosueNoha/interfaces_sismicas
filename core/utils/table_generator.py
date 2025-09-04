@@ -32,7 +32,7 @@ class SeismicTableGenerator:
 \\caption{Análisis Modal - Períodos y Masas Participativas}
 \\label{tab:modal_analysis}
 \\footnotesize
-\\begin{tabular}{|c|c|c|c|c|c|}
+\\begin{tabular}{cccccc}
 \\hline
 \\textbf{Modo} & \\textbf{Período (s)} & \\textbf{UX (\\%)} & \\textbf{UY (\\%)} & \\textbf{SumUX (\\%)} & \\textbf{SumUY (\\%)} \\\\
 \\hline
@@ -47,7 +47,7 @@ class SeismicTableGenerator:
             sum_ux = float(row.get('SumUX', 0))
             sum_uy = float(row.get('SumUY', 0))
             
-            table_content += f"{mode} & {period:.4f} & {ux:.1f} & {uy:.1f} & {sum_ux:.1f} & {sum_uy:.1f} \\\\\n\\hline\n"
+            table_content += f"{mode} & {period:.4f} & {ux:.1f} & {uy:.1f} & {sum_ux:.1f} & {sum_uy:.1f} \\\\\n"
         
         table_content += "\\end{tabular}\n\\end{table}"
         return table_content
@@ -77,7 +77,7 @@ class SeismicTableGenerator:
 \\caption{{Derivas de Entrepiso - Dirección {direction}}}
 \\label{{tab:drifts_{direction.lower()}}}
 \\footnotesize
-\\begin{{tabular}}{{|c|c|c|c|}}
+\\begin{{tabular}}{{cccc}}
 \\hline
 \\textbf{{Piso}} & \\textbf{{Deriva {direction}}} & \\textbf{{Límite}} & \\textbf{{Verificación}} \\\\
 \\hline
@@ -86,7 +86,7 @@ class SeismicTableGenerator:
         for _, row in drift_data.iterrows():
             story = str(row.get('Story', ''))
             drift = float(row.get(drift_column, 0.0))
-            verification = "✓" if drift <= drift_limit else "✗"
+            verification = "\\checkmark" if drift <= drift_limit else "$\\times$"
             
             table_content += f"{story} & {drift:.4f} & {drift_limit:.3f} & {verification} \\\\\n\\hline\n"
         
@@ -106,7 +106,7 @@ class SeismicTableGenerator:
 \\caption{Desplazamientos Laterales}
 \\label{tab:displacements}
 \\footnotesize
-\\begin{tabular}{|c|c|c|}
+\\begin{tabular}{ccc}
 \\hline
 \\textbf{Piso} & \\textbf{Despl. X} & \\textbf{Despl. Y} \\\\
 \\hline
@@ -117,7 +117,7 @@ class SeismicTableGenerator:
             disp_x = float(row.get('Maximum_x', 0.0))
             disp_y = float(row.get('Maximum_y', 0.0))
             
-            table_content += f"{story} & {disp_x:.1f} & {disp_y:.1f} \\\\\n\\hline\n"
+            table_content += f"{story} & {disp_x:.3f} & {disp_y:.3f} \\\\\n"
         
         table_content += "\\end{tabular}\n\\end{table}"
         return table_content
@@ -135,7 +135,7 @@ class SeismicTableGenerator:
     \\caption{{Cortantes Dinámicos por Piso}}
     \\label{{tab:shear_dynamic}}
     \\footnotesize
-    \\begin{{tabular}}{{|c|c|c|}}
+    \\begin{{tabular}}{{ccc}}
     \\hline
     \\textbf{{Piso}} & \\textbf{{Cortante X (tonf)}} & \\textbf{{Cortante Y (tonf)}} \\\\
     \\hline
@@ -145,7 +145,7 @@ class SeismicTableGenerator:
             story = row['Story']
             vx = row.get('V_x', row.get('VX', 0.0))
             vy = row.get('V_y', row.get('VY', 0.0))
-            table_content += f"{story} & {vx:.3f} & {vy:.3f} \\\\\n\\hline\n"
+            table_content += f"{story} & {vx:.3f} & {vy:.3f} \\\\\n"
         
         table_content += "\\end{tabular}\n\\end{table}"
         return table_content
@@ -163,7 +163,7 @@ class SeismicTableGenerator:
     \\caption{{Cortantes Estáticos por Piso}}
     \\label{{tab:shear_static}}
     \\footnotesize
-    \\begin{{tabular}}{{|c|c|c|}}
+    \\begin{{tabular}}{{ccc}}
     \\hline
     \\textbf{{Piso}} & \\textbf{{Cortante X (tonf)}} & \\textbf{{Cortante Y (tonf)}} \\\\
     \\hline
@@ -173,7 +173,7 @@ class SeismicTableGenerator:
             story = row['Story']
             vx = row.get('V_x', row.get('VX', 0.0))
             vy = row.get('V_y', row.get('VY', 0.0))
-            table_content += f"{story} & {vx:.3f} & {vy:.3f} \\\\\n\\hline\n"
+            table_content += f"{story} & {vx:.3f} & {vy:.3f} \\\\\n"
         
         table_content += "\\end{tabular}\n\\end{table}"
         return table_content
@@ -181,8 +181,6 @@ class SeismicTableGenerator:
     
     def _process_shear_for_table(self, shear_data):
         """Procesar datos de cortante para formato de tabla según lógica original"""
-        import re
-        
         # Filtrar solo ubicación Bottom para cortantes por piso
         bottom_data = shear_data[shear_data['Location'] == 'Bottom'].copy()
         bottom_data = bottom_data[['Story', 'OutputCase', 'V']]
@@ -205,13 +203,10 @@ class SeismicTableGenerator:
         if not cases_x or not cases_y:
             return bottom_data  # Retornar datos sin procesar si no hay casos
         
-        # Crear regex para filtrar casos X e Y
-        regex_x = '^(' + '|'.join(re.escape(c) for c in cases_x) + ')'
-        regex_y = '^(' + '|'.join(re.escape(c) for c in cases_y) + ')'
         
         # Separar datos X e Y y combinar (lógica de tu código original)
-        data_x = bottom_data[bottom_data['OutputCase'].str.match(regex_x)]
-        data_y = bottom_data[bottom_data['OutputCase'].str.match(regex_y)]
+        data_x = bottom_data[bottom_data['OutputCase'].isin(cases_x)]
+        data_y = bottom_data[bottom_data['OutputCase'].isin(cases_y)]
         
         # Merge para tener X e Y en la misma fila por Story
         combined_data = data_x.merge(data_y, on='Story', suffixes=('_x', '_y'))
@@ -285,15 +280,22 @@ class SeismicTableGenerator:
 \\caption{{Irregularidad Torsional - Dirección {direction}}}
 \\label{{tab:torsion_{direction.lower()}}}
 \\footnotesize
-\\begin{{tabular}}{{|c|c|c|c|}}
+\\begin{{tabular}}{{cccc}}
 \\hline
 \\textbf{{Piso}} & \\textbf{{$\\Delta_{{max}}$}} & \\textbf{{$\\Delta_{{prom}}$}} & \\textbf{{Relación}} \\\\
 \\hline
 """
+        if direction == 'X':
+            torsion_data = self.seismic.tables.torsion_x
+        else:
+            torsion_data = self.seismic.tables.torsion_x
         
-        # Datos de ejemplo
-        for i in range(1, 6):
-            table_content += f"Piso {i} & - & - & - \\\\\n\\hline\n"
+        for _, row in torsion_data.iterrows():
+            story = row.get('Story')
+            max_drift = row.get('Max Drift')
+            avg_drift = row.get('Avg Drift')
+            ratio = row.get('Ratio')
+            table_content += f"{story} & {max_drift:.4f} & {avg_drift:.4f} & {ratio:.2f} \\\\\n"
         
         table_content += "\\end{tabular}\n\\end{table}"
         return table_content

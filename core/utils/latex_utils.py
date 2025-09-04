@@ -5,40 +5,28 @@ Utilidades LaTeX compartidas para generación de reportes sísmicos
 import re
 import pandas as pd
 from typing import Optional
+from typing import Optional, Dict, Any
 
 
-def escape_for_latex(text: str) -> str:
-    """
-    Escapa caracteres especiales para uso en LaTeX
-    
-    Args:
-        text: Texto a escapar
-        
-    Returns:
-        Texto con caracteres escapados para LaTeX
-    """
-    if not isinstance(text, str):
-        return str(text)
-    
-    # Caracteres especiales de LaTeX que necesitan escape
-    latex_special_chars = {
-        '&': r'\&',
-        '%': r'\%',
-        '$': r'\$',
-        '#': r'\#',
-        '^': r'\textasciicircum{}',
-        '_': r'\_',
-        '{': r'\{',
-        '}': r'\}',
-        '~': r'\textasciitilde{}',
-        '\\': r'\textbackslash{}'
-    }
-    
-    for char, escape in latex_special_chars.items():
-        text = text.replace(char, escape)
-    
+def escape_for_latex(text):
+    text = re.sub(r'\\\\(?=\s*(?:\n|$))', r'\\\\\\\\', text)
+    text = re.sub(r'(?<!\\)\\([a-zA-Z])', r'\\\\\1', text)
     return text
 
+def distribute_images(image_1,image_2):
+    from PIL import Image
+    # Cargar la imagen
+    im_1 = Image.open(image_1)
+    width, height = im_1.size
+    relation_1 = width / height
+    im_2 = Image.open(image_2)
+    width, height = im_2.size
+    relation_2 = width / height
+    
+    width_1 = 0.95*relation_1/(relation_1+relation_2)
+    width_2 = 0.95*relation_2/(relation_1+relation_2)
+    #width=0.54\textwidth
+    return fr'{width_1:.2f}\textwidth', fr'{width_2:.2f}\textwidth'
 
 def dataframe_latex(df: pd.DataFrame, columns: list = None, decimals: int = 2, 
                    escape: bool = True) -> str:
@@ -120,6 +108,28 @@ def table_wrapper(caption: str, label: Optional[str] = None) -> str:
     
     return wrapper
 
+def replace_template_variables(content: str, variables: Dict[str, Any]) -> str:
+    """
+    Reemplaza variables en template LaTeX (MEJORADO)
+    Maneja múltiples patrones de formato usados en Bolivia y Perú
+    """
+    for var, value in variables.items():
+        # Patrones consolidados de ambos países
+        patterns = [
+            # Bolivia patterns
+            rf'@{re.escape(var)}.0nn',  # Entero
+            rf'@{re.escape(var)}.1nu',  # 1 decimal
+            rf'@{re.escape(var)}.2nu',  # 2 decimales
+            rf'@{re.escape(var)}.3nu',  # 3 decimales  
+            rf'@{re.escape(var)}.2F4',  # Formato especial Bolivia
+            # Patrón básico
+            rf'@{re.escape(var)}',
+        ]
+        
+        for pattern in patterns:
+            content = re.sub(pattern, str(value), content)
+    
+    return content
 
 def extract_table(content: str, caption: str) -> str:
     """

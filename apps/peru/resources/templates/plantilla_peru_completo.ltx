@@ -25,7 +25,6 @@
 \usepackage{pgfplots}
 \usepackage{xfp}
 \usepackage{placeins}
-\usepackage{amssymb}
 \graphicspath{ {..//out} }
 
 
@@ -59,7 +58,7 @@
     {\large\textbf{SEGÚN REGLAMENTO NACIONAL}} \\[1em]% Cambia XXX por E030, ASCE 7-22, etc.
     {\large\textbf{DE EDIFICACIONES (E-030)}} \\[2em]
 
-    \includegraphics[height=0.35\textheight]{images/3d.png}\\[2em]
+    \includegraphics[width=0.5\textheight]{images/3d.png}\\[2em]
 
     
     \vfill
@@ -79,8 +78,8 @@
     
     \vfill
     
-    \includegraphics[width=0.25\textwidth]{images/logo.png}\\
-
+    \includegraphics[width=0.3\textwidth]{images/logo.png}\\
+    % Asegúrate de tener una imagen llamada "logo.png" en el mismo folder
     
     \vspace*{1cm}
 \end{titlepage}
@@ -91,13 +90,7 @@
 
 \clearpage
 
-@content\_description
 
-@content\_criteria
-
-@content\_loads
-
-\newpage
 
 \section{Análisis Sísmico}%
 \label{sec:AnlisisSsmico}%
@@ -107,7 +100,7 @@
 \subsubsection{Factor zona}%
 Este factor se interpreta como la aceleración máxima horizontal en el suelo rígido con una probabilidad de 10 \% de ser excedida en 50 años%
 
-\begin{table}[H]
+\begin{table}[ht!]
 \begin{minipage}{0.55\textwidth}
 \caption{Factor de zona}
 \begin{tabular}{|>{\centering\arraybackslash}m{3.75cm}|>{\centering\arraybackslash}m{3.75cm}|}
@@ -137,7 +130,7 @@ Este factor se interpreta como la aceleración máxima horizontal en el suelo r�
 \subsubsection{Factor de suelo}
 Este factor se interpreta como  un factor de modificación de la aceleración pico del suelo para un perfil determinado respecto al pefil tipo S1
 
-\begin{table}[H]
+\begin{table}[ht!]
 \centering
 \caption{Factor de suelo}
 \begin{tabular}{|>{\centering\arraybackslash}m{3.75cm}|>{\centering\arraybackslash}m{2cm}|>{\centering\arraybackslash}m{2cm}|>{\centering\arraybackslash}m{2cm}|>{\centering\arraybackslash}m{2cm}|}
@@ -185,7 +178,7 @@ Después de realizar el análisis sísmico se determino que los sistemas estruct
 Pórticos Especiales de Acero Resistentes a Momentos y Pórticos Especiales de Acero Resistentes a Momentos respectivamente
 
 
-\begin{table}[H]
+\begin{table}[ht!]
 \caption{Coeficiente básico de reducción}
 \begin{tabular}{|>{\arraybackslash}m{10cm}| >{\centering\arraybackslash}m{4cm}|}
 \hline
@@ -230,7 +223,7 @@ Se determina según el artículo 14 de la E{-}030.
 \setlength{\jot}{0.5cm}
 
 
-\begin{figure}[H]
+\begin{figure}[h!]
 \caption{Factor de amplificación}
 \begin{minipage}{0.5\textwidth}
     \begin{align*}
@@ -274,7 +267,7 @@ D Edificaciones temporales&Construcciones provisionales para depósitos, casetas
 
 \subsubsection{Espectro de respuesta de aceleraciones}
 \label{ssubsec:Espectroderespuestadeaceleraciones}
-\begin{figure}[H]
+\begin{figure}[h!]
     \centering
     \begin{tikzpicture}
     %draw[color=blue, help lines,dashed ] (0,0) grid (4.5,1.7);
@@ -324,9 +317,34 @@ D Edificaciones temporales&Construcciones provisionales para depósitos, casetas
 
 @table\_modal
 
-@image\_modes
+@image\_mode\_x
+@image\_mode\_y
 
 \subsection{Análisis de Irregularidades}%
+
+\subsubsection{Irregularidad de Rigidez-Piso Blando}%
+\begin{tcolorbox}[colback=gray!5!white,colframe=cyan!75!black,fonttitle=\bfseries,title=Tabla N°9 E-030]%
+Existe irregularidad de rigidez cuando, en cualquiera de las direcciondes de análisis, en un entrepiso la rigidez lateral es menor que 70\% de la rigidez lateral del entrepiso inmediato superior, o es menor que 80\% de la rigidez lateral promedio de los tres niveles superiores adyacentes. 
+ Las rigideces laterales pueden calcularse como la razón entre la fuerza cortante del entrepiso y el correspondiente desplazamiento relatibo en el centro de masas, ambos evaluados para la misma condición de carga %
+\end{tcolorbox}%
+\begin{tcolorbox}[colback=gray!5!white,colframe=cyan!75!black,fonttitle=\bfseries,title=Tabla N°9 E-030]%
+
+Existe irregularidad extrema de rigidez cuando, en cualquiera de las direcciones de análisis, en un entrepiso la rigidez lateral es menor que 60\% de la rigidez lateral del entrepiso inmediato superior, o es menor que 70\% de la rigidez lateral promedio de los tres niveles superiores adyacentes.
+Las rigideces laterales pueden calcularse como la razon entre la fuerza cortante del entrepiso y el correspondiente desplazamiento relativo en el centro de masas, ambos evaluados para la misma condición de carga.%
+\end{tcolorbox}%
+Las rigideces laterales pueden calcularse como la razon entre la fuerza cortante del entrepiso y el correspondiente desplazamiento relativo en el centro de masas, ambos evaluados para la misma condición de carga. \newline
+
+@table\_stiffness\_x
+
+@table\_stiffness\_y
+
+\subsubsection{Irregularidad de Masa o Peso}%
+\label{ssubsec:IrregularidaddeMasaoPeso}%
+\begin{tcolorbox}[colback=gray!5!white,colframe=cyan!75!black,fonttitle=\bfseries,title=Tabla N°9 E-030]%
+Se tiene irregularidad de masa (o peso) cuando el peso de un piso determinado según el artículo 26, es nayor que 1,5 veces el peso de un piso adyascente. Este criterio no se aplica en azoteas ni en sótanos%
+\end{tcolorbox}%
+
+@table\_mass
 
 \subsubsection{Irregularidad Torsional}
 \label{ssubsec:IrregularidadTorsional}
@@ -351,6 +369,32 @@ Existe irregularidad torsional cuando, en cualquiera de las direcciones de anál
 
 @table\_torsion\_y
 
+\subsubsection{Irregularidad por Discontinuidad del Diafragma}
+\begin{tcolorbox}[colback=gray!5!white,colframe=cyan!75!black,fonttitle=\bfseries,title=Tabla N°9 E-030]
+\textit{La estructura se califica como irregular cuando los diafragmas tienen discontinuidades abruptas o variaciones importantes en rigidez, incluyendo aberturas mayores que 50\% del área bruta del diafragma.} \\ \textit{También  existe  irregularidad  cuando,  en  cualquiera de  los pisos y para cualquiera de las direcciones de análisis, se tiene alguna sección transversal del diafragma con un área neta resistente menor que 25\% del área de la sección transversal total de la misma dirección calculada con las dimensiones totales de la planta.}
+\end{tcolorbox}
+\vspace{-10pt}
+
+
+\begin{figure}[H]
+\centering
+\caption{Irregularidad por discontinuidad del diafragma}
+\includegraphics[scale=0.7]{images/i_diafragma.PNG}
+\caption*{\small Fuente: Muñoz (2020)}
+\end{figure}
+
+\subsubsection{Irregularidad por Esquinas entrantes}
+\begin{tcolorbox}[colback=gray!5!white,colframe=cyan!75!black,fonttitle=\bfseries,title=Tabla N°9 E-030]
+\textit{La estructura se califica como irregular cuando tiene esquinas entrantes  cuyas  dimensiones  en  ambas  direcciones  son mayores que 20\% de la correspondiente dimensión total en planta}
+\end{tcolorbox}
+
+
+\begin{figure}[H]
+\centering
+\caption{Irregularidad por esquinas entrantes}
+\includegraphics[scale=0.5]{images/i_esquinas.PNG}
+\caption*{\small Fuente: Muñoz (2020)}
+\end{figure}
 
 \subsection{Análisis Dinámico Espectral Art. 29 E{-}030}
 El análisis dinámico modal espectral consiste calcular la respuesta para cada modo ingresando al espectro de pseudo-aceleraciones definido en \ref{ssubsec:Espectroderespuestadeaceleraciones}, para posteriormente combinar los resultados según los criterios que se menciona en la norma E-030:
@@ -391,7 +435,7 @@ $\omega _{j}$,$\omega _{i}$: son las frecuencias angulares de los modos i, j\\
 
 \subsection{Verificación de derivas máximas Art. 32 E{-}030}
 
-\begin{table}[H]
+\begin{table}[ht!]
 \centering
 \caption{Derivas máximas}
 \begin{tabular}{>{\raggedright\arraybackslash}p{9.8cm} >{\raggedleft\arraybackslash}p{1cm}}
@@ -425,7 +469,7 @@ Acero & 0.01 \\
 @table\_drifts\_y
 \end{minipage}
 
-\begin{figure}[H]
+\begin{figure}[ht!]
 \includegraphics[width=0.8\textwidth]{images/derivas}
 \caption{Derivas máxima de entrepiso}
 \end{figure}
@@ -462,12 +506,12 @@ Lo anterior equivale a calcular los modos de vibrar en el modelo matemático res
 
 @table\_shear\_static
 
-\begin{figure}[H]
+\begin{figure}[ht!]
 \includegraphics[width=0.8\textwidth]{images/cortante_dinamico.pdf}
 \caption{Cortantes de Entrepiso del Análisis Modal Espectral}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[ht!]
 \includegraphics[width=0.8\textwidth]{images/cortante_estatico.pdf}
 \caption{Cortantes de Entrepiso del Análisis Modal Espectral}
 \end{figure}
@@ -488,7 +532,56 @@ F.E. & @FEx.2nu & @FEy.2nu \\
 \end{tabular}
 \end{table}
 
+\subsection{Separación entre edificios Art. 33 E{-}030}
+\begin{tcolorbox}[colback=gray!5!white,colframe=cyan!75!black,fonttitle=\bfseries,title=Art. 33.1]
+\textit{Toda estructura está separada de las estructuras vecinas, desde el nivel del terreno natural, una distancia mínima s para evitar el contacto durante un movimiento sísmico.}
+\end{tcolorbox}
+\begin{tcolorbox}[colback=gray!5!white,colframe=cyan!75!black,fonttitle=\bfseries,title=Art. 33.2]
+\textit{Esta distancia no es menor que los 2/3 de la suma de los desplazamientos máximos de los edificios adyacentes ni menor que:}
+\end{tcolorbox}
+\begin{alignat}{1}
+s=0.006\;h\geq0.03\;m
+\end{alignat}
+Donde h es la altura medida desde el nivel del terreno natural hasta el nivel considerado para evaluar s
+\begin{tcolorbox}[colback=gray!5!white,colframe=cyan!75!black,fonttitle=\bfseries,title=Art. 33.3]
+\textit{El edificio se retira de los límites de propiedad adyacentes a otros lotes edificables,  o  con  edificaciones,  distancias  no  menores  que  2/3  del desplazamiento máximo calculado según el artículo 28 ni menores que s/2 si la edificación existente cuenta con una junta sísmica reglamentaria.}
+\end{tcolorbox}
 
+
+\begin{figure}[H]
+\centering
+\caption{Separación entre edificios}
+\includegraphics[scale=0.5]{images/sep_edificios.PNG}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\caption{Cálculo de la junta sísmica}
+\extrarowheight = -0.3ex
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{l|c|c|l}
+\cline{2-3}
+\textit{Altura del edificio} & \textbf{h} & {@hb.2uh} & {@uh.0nn} \\
+\cline{2-3}
+\textit{Separación mínima entre edificios} & \textbf{s=0.006h} & {@smin1.2ud} & {> @smax.0ud @ud.0nn} \\
+\cline{2-3}
+\textit{Separación mínima del limite de propiedad} & \textbf{s/2} & {@smin2.2ud} & {@ud.0nn} \\
+\cline{2-3}
+\textit{Desplazamiento máximo en X} & \textbf{$\Delta_x$} & {@dispMaxx.2ud} & {@ud.0nn} \\
+\cline{2-3}
+\textit{Desplazamiento máximo en Y} & \textbf{$\Delta_y$} & {@dispMaxy.2ud} & {@ud.0nn} \\
+\cline{2-3}
+\textit{Separación del limite de propiedad X} & \textbf{2/3$\Delta_{x}$} & {@sminx.2ud} & {@ud.0nn} \\
+\cline{2-3}
+\textit{Separación del limite de propiedad Y} & \textbf{2/3$\Delta_{y}$} & {@sminy.2ud} & {@ud.0nn} \\
+\cline{2-3}
+\end{tabular}
+\label{tab:junta_sis}
+\end{table}
+
+
+Según lo calculado en la tabla \ref{tab:junta_sis} 
+ el edificio tendrá que ser separado del limite de propiedad @smin.2ud @ud.0nn como mínimo en ambas direcciones, en el caso que no exista junta reglamentaria el edificio actual se separa del edificio existente el valor de s/2 que le corresponde, más el valor s/2 de la estructura vecina.
 
 
 \end{document}

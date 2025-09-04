@@ -184,7 +184,6 @@ class AppBase(QMainWindow):
         if file_path:
             # Guardar path en el objeto sismo
             self.sismo.urls_imagenes[image_type] = file_path
-            
             self.ui._update_image_status(image_type, file_path)
             
             print(f"✅ Imagen {image_type} cargada: {file_path}")
@@ -450,14 +449,17 @@ class AppBase(QMainWindow):
                 return
             
         from core.utils.etabs_utils import get_modal_data,process_modal_data
-        if self.modal_data == None:
+        if self.modal_data is None:
             modal_data = get_modal_data(self.SapModel)
             self.modal_data = modal_data
-        if modal_data is not None and len(modal_data) > 0:
-            results = process_modal_data(modal_data)
-            if results:
-                self.modal_results = results
-                self.ui.modal_card.update_modal_results(results)
+            filtered_modal_data = self._filter_modal_columns(modal_data)
+            self.sismo.tables.modal = filtered_modal_data
+
+        results = process_modal_data(self.modal_data)
+        if results:
+            self.modal_results = results
+            self.sismo.min_mass_participation = self.ui.modal_card._get_min_mass_participation()
+            self.ui.modal_card.update_modal_results(results)
         else:
             self.show_warning("⚠️ No hay datos modales disponibles.")
         
@@ -473,13 +475,13 @@ class AppBase(QMainWindow):
                 self.process_modal_data()
             
             if self.modal_data is not None and self.modal_results is not None:
-                filtered_modal_data = self._filter_modal_columns(self.modal_data)
+                modal_data = self.sismo.tables.modal
                 # Mostrar tabla directamente
                 from shared.dialogs.table_dialog import show_dataframe_dialog
                 
                 show_dataframe_dialog(
                     parent=self,
-                    dataframe=filtered_modal_data,
+                    dataframe=modal_data,
                     title="Análisis Modal - Períodos y Masas Participativas"
                 )
         
@@ -564,8 +566,9 @@ class AppBase(QMainWindow):
                 print(f"⚠️ Error configurando ETABS: {e}")
             
             # Obtener datos directamente de ETABS
-            from core.utils.etabs_utils import get_story_forces, get_story_data, set_units
+            from core.utils.etabs_utils import get_story_forces, get_story_data, set_units,set_envelopes_for_display
             set_units(self.SapModel,'Ton_m_C')
+            set_envelopes_for_display(self.SapModel)
             story_forces = get_story_forces(self.SapModel)
             story_data = get_story_data(self.SapModel)
             
@@ -574,6 +577,7 @@ class AppBase(QMainWindow):
                 return False
             
             story_forces = story_forces.merge(story_data,on='Story',sort=False)
+            story_forces = story_forces[story_forces['StepType']=='Max']
             
             shear_dynamic = story_forces[story_forces['OutputCase'].isin(dynamic_cases)].copy()
             shear_static = story_forces[story_forces['OutputCase'].isin(static_cases)].copy()
@@ -630,12 +634,14 @@ class AppBase(QMainWindow):
                 filtered = df[df['OutputCase'].isin(cases)].copy()
                 return abs(filtered['V'].iloc[-1]) if len(filtered) > 0 else 0.0
             
-            return {
+            self.sismo.base_values =  {
                 'vdx': get_shear_value(dyn_base, 'X'),
                 'vdy': get_shear_value(dyn_base, 'Y'),
                 'vsx': get_shear_value(sta_base, 'X'),
                 'vsy': get_shear_value(sta_base, 'Y')
             }
+            
+            return self.sismo.base_values
             
         except Exception as e:
             print(f"❌ Error extrayendo cortantes: {e}")
@@ -681,6 +687,7 @@ class AppBase(QMainWindow):
             except:
                 min_percent = 0.80  # 80% por defecto
             
+            self.sismo.min_percent = min_percent
             # Calcular factores (dinámico debe ser >= min_percent * estático)
             fx = 1.0
             fy = 1.0
@@ -983,6 +990,7 @@ class AppBase(QMainWindow):
             # Calcular irregularidad torsional
             success = self.sismo.calculate_torsional_irregularity(self.SapModel, cases_x, cases_y)
             limit = self.ui.torsion_card._get_torsion_limit()
+            self.sismo.max_drift = limit
             
             if success:
                 self._update_torsion_results()
@@ -1087,30 +1095,22 @@ class AppBase(QMainWindow):
                 return
         
         try:
-            print("🔄 Actualizando análisis modal y cortantes automáticamente...")
-            
-            print('Unidades')
             # UNIDADES
             units_dict = self.get_current_units()
             self._update_interface_units(units_dict)
             
-            print('Analisis Modal')
             # ANÁLISIS MODAL
             self.process_modal_data()
             
-            print('Cortantes')
             # CORTANTES
             self._update_shear_displays()
             
-            print('Desplazamientos')
             # DESPLAZAMIENTOS
             self.calculate_displacements()
             
-            print('Derivas')
             # DERIVAS
             self.calculate_drifts()
             
-            print('Torsion')
             # IRREGULARIDAD TORSIONAL
             self.calculate_torsion()
             
@@ -1145,9 +1145,15 @@ class AppBase(QMainWindow):
         if not self.SapModel:
             if not self._connect_etabs():
                 return
-  
+        self.sismo.units = self.get_current_units()
+        self.sismo.project_data = self.get_project_data()
         self._update_data()
         self._generate_all_plots()
+        
+        self.sismo.generate_description = self.ui.cb_desc_estructura.isChecked()
+        self.sismo.generate_criteria = self.ui.cb_criterios.isChecked()
+        self.sismo.generate_loads = self.ui.cb_cargas.isChecked()
+        self.sismo.insert_modes = self.ui.cb_modos.isChecked()
         
         print("✅ Actualización completa terminada")
         

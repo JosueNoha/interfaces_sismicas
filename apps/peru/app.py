@@ -264,6 +264,7 @@ class PeruSeismicApp(AppBase):
     
     
     def generate_report(self):
+        from pathlib import Path
         """Generar reporte específico de Perú"""
         try:
             # Seleccionar directorio
@@ -272,6 +273,7 @@ class PeruSeismicApp(AppBase):
             if not output_dir:
                 return
             
+            self.clear_figures()
             from apps.peru.memory import PeruMemoryGenerator
             memory_generator = PeruMemoryGenerator(self.sismo, output_dir)
             
@@ -280,12 +282,7 @@ class PeruSeismicApp(AppBase):
             # Generar memoria
             tex_file = memory_generator.generate_memory()
                 
-            self.show_info(
-                f"✅ Memoria Perú generada!\n\n"
-                f"📁 {output_dir}\n"
-                f"📄 {tex_file.name}\n\n"
-                f"Incluye: parámetros E.030, espectro, análisis modal"
-            )
+            self._show_memory_completion_message(tex_file, Path(output_dir))
        
                 
         except Exception as e:

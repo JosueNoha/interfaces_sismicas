@@ -43,8 +43,9 @@ class AppBase(QMainWindow):
         self._init_default_values()
         
         # Actualizar widgets al inicio
-        self.refresh_all_combinations()
-        self.update_all_data()
+        self._connect_etabs()
+        # self.refresh_all_combinations()
+        # self.update_all_data()
         
         # Conectar señales
         self._connect_common_signals()
@@ -440,6 +441,8 @@ class AppBase(QMainWindow):
                 connected=True, 
                 model_name=model_info['model_name'])
                 self.clear_figures()
+                self.refresh_all_combinations()
+                self.update_all_data()
                 return True
             else:
                 error_msg = model_info.get('error', 'Error desconocido')
@@ -1029,9 +1032,9 @@ class AppBase(QMainWindow):
             
         
     def _create_shear_plot(self,plot_type='static'):
+        self.update_seismic_loads()
         self.calculate_shear_forces()
         shear_data = getattr(self.sismo,f'shear_{plot_type}')
-        self.update_seismic_loads()
         prep = 'SS' if plot_type == 'static' else 'SD'
         sx = self.sismo.loads.seism_loads[prep+'X']
         sy = self.sismo.loads.seism_loads[prep+'Y']
@@ -1432,7 +1435,7 @@ class AppBase(QMainWindow):
             self._generate_displacements_plot()
             
             # Derivas
-            self._generate_displacements_plot()
+            self._generate_drifts_plot()
             
             # Cortantes
             self._create_shear_plot('static')
@@ -1530,7 +1533,7 @@ class AppBase(QMainWindow):
             if not self._connect_etabs():
                 self.show_message("Error", "No se pudo conectar con ETABS", 'error')
                 return
-            
+
             # Actualizar información
             self.update_all_data()
             
@@ -1547,14 +1550,8 @@ class AppBase(QMainWindow):
             try:
                 tex_file = memory_generator.generate_memory()
                 
-                self.show_message(
-                    "Éxito",
-                    f"Memoria generada exitosamente:\n{tex_file}",
-                    'info'
-                )
-                
-                # Abrir directorio de salida
-                self._open_output_directory(output_dir)
+                # CAMBIO AQUÍ: Mensaje con opción de abrir
+                self._show_memory_completion_message(tex_file, output_dir)
                     
             except ValueError as ve:
                 # Error de validación - mostrar mensaje específico
@@ -1566,4 +1563,56 @@ class AppBase(QMainWindow):
                 
         except Exception as e:
             self.show_message("Error", f"Error inesperado: {e}", 'error')
+            
+    def _show_memory_completion_message(self, tex_file: Path, output_dir: Path):
+        """Mostrar mensaje de finalización con opción de abrir memoria"""
+        from PyQt5.QtWidgets import QMessageBox, QPushButton
+        
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Memoria Completada")
+        msg_box.setIcon(QMessageBox.Information)
+        msg_box.setText(f"Memoria generada exitosamente:\n{tex_file}")
+        
+        # Botones personalizados
+        open_folder_btn = msg_box.addButton("Abrir Carpeta", QMessageBox.ActionRole)
+        open_file_btn = msg_box.addButton("Abrir Memoria", QMessageBox.ActionRole)
+        close_btn = msg_box.addButton("Cerrar", QMessageBox.RejectRole)
+        
+        msg_box.setDefaultButton(open_file_btn)
+        
+        # Ejecutar diálogo
+        msg_box.exec_()
+        
+        # Procesar respuesta
+        clicked_button = msg_box.clickedButton()
+        
+        if clicked_button == open_folder_btn:
+            self._open_output_directory(output_dir)
+        elif clicked_button == open_file_btn:
+            self._open_memory_file(tex_file)
+
+    def _open_memory_file(self, tex_file: Path):
+        """Abrir archivo de memoria con el programa predeterminado"""
+        try:
+            import subprocess
+            import platform
+            
+            # Intentar abrir PDF primero si existe
+            pdf_file = tex_file.with_suffix('.pdf')
+            file_to_open = pdf_file if pdf_file.exists() else tex_file
+            
+            system = platform.system()
+            if system == "Windows":
+                subprocess.Popen(f'start "" "{file_to_open.absolute()}"', shell=True)
+            elif system == "Darwin":  # macOS
+                subprocess.Popen(['open', str(file_to_open.absolute())])
+            else:  # Linux
+                subprocess.Popen(['xdg-open', str(file_to_open.absolute())])
+                
+            print(f"✅ Abriendo memoria: {file_to_open}")
+            
+        except Exception as e:
+            print(f"❌ Error abriendo memoria: {e}")
+            # Fallback: solo abrir directorio
+            self._open_output_directory(tex_file.parent)
             
